@@ -20,6 +20,9 @@ export const renderAuthHTML = () => `
               New here?
               <button class="link-button" type="button" data-auth-switch="register">Create an account</button>
             </p>
+            <p class="auth-footnote">
+              <a href="#/cart" class="link-button">Continue as guest</a> — book without an account.
+            </p>
           </form>
         </div>
         <div class="auth-card light d-none" id="registerCard">
@@ -75,9 +78,9 @@ export const hideAuthPage = () => {
 export const showAuthView = (view) => {
   const registerCard = document.querySelector("#registerCard");
   const loginCard = document.querySelector("#loginCard");
-  
+
   if (!registerCard || !loginCard) return;
-  
+
   if (view === "register") {
     registerCard.classList.remove("d-none");
     loginCard.classList.add("d-none");
@@ -91,10 +94,10 @@ export const syncAuthUI = () => {
   const navLogout = document.querySelector("#navLogout");
   const navLogin = document.querySelector("#navLogin");
   const isAuthed = Boolean(state.token);
-  
+
   navLogout?.classList.toggle("d-none", !isAuthed);
   navLogin?.classList.toggle("d-none", isAuthed);
-  
+
   updateAuthGreeting();
 };
 
@@ -103,7 +106,7 @@ const handleLogin = async (event) => {
   console.log("Login form submitted");
   const { loginStatus, eventsGrid } = elements;
   loginStatus.textContent = "";
-  
+
   try {
     const payload = {
       email: document.querySelector("#loginEmail").value.trim(),
@@ -118,7 +121,7 @@ const handleLogin = async (event) => {
     setAuthState(data.token, data.user);
     syncAuthUI();
     loadEvents();
-    
+
     if (loginStatus) {
       loginStatus.textContent = "Signed in successfully.";
       loginStatus.classList.add("success");
@@ -138,9 +141,9 @@ const handleRegister = async (event) => {
   const registerStatus = document.querySelector("#registerStatus");
   const registerCard = document.querySelector("#registerCard");
   const loginCard = document.querySelector("#loginCard");
-  
+
   if (registerStatus) registerStatus.textContent = "";
-  
+
   try {
     const payload = {
       first_name: document.querySelector("#registerFirstName").value.trim(),
@@ -155,7 +158,7 @@ const handleRegister = async (event) => {
     setAuthState(data.token, data.user);
     syncAuthUI();
     loadEvents();
-    
+
     if (registerStatus) {
       registerStatus.textContent = "Account created. You are signed in.";
       registerStatus.classList.add("success");

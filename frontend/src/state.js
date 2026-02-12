@@ -3,6 +3,7 @@ export const state = {
   user: JSON.parse(localStorage.getItem("user") || "null"),
   cart: JSON.parse(localStorage.getItem("cart") || "[]"),
   events: [],
+  guestInfo: JSON.parse(localStorage.getItem("guestInfo") || "null"),
 };
 
 // Normalize cart items
@@ -15,6 +16,15 @@ state.cart = state.cart.map((item) => ({
 
 export const saveCart = () => {
   localStorage.setItem("cart", JSON.stringify(state.cart));
+};
+
+export const saveGuestInfo = (info) => {
+  state.guestInfo = info;
+  if (info) {
+    localStorage.setItem("guestInfo", JSON.stringify(info));
+  } else {
+    localStorage.removeItem("guestInfo");
+  }
 };
 
 export const setAuthState = (token, user) => {

@@ -493,6 +493,46 @@ h1 {
   margin-bottom: 0;
 }
 
+.guest-form {
+  padding: 1rem 0 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.guest-form-title {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+  color: #fff;
+}
+
+.guest-form .form-control {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.guest-form .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.guest-form .form-control:focus {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(41, 145, 148, 0.25);
+  color: #fff;
+}
+
+.guest-form .auth-footnote {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 0.25rem;
+}
+
+.guest-form .auth-footnote a {
+  color: var(--butter);
+  text-decoration: underline;
+}
+
 .btn {
   border-radius: 999px;
   background: #daaa00;
