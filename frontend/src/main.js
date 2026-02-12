@@ -7,7 +7,9 @@ import { renderHomeHTML, initHomePage, showHomePage, hideHomePage } from "./page
 import { renderEventsHTML, initEventsPage, showEventsPage, hideEventsPage, loadEvents } from "./pages/events.js";
 import { renderBookingsHTML, initBookingsPage, showBookingsPage, hideBookingsPage, loadBookings, updateAuthGreeting } from "./pages/bookings.js";
 import { renderCartHTML, initCartPage, showCartPage, hideCartPage, renderCart, addToCart } from "./pages/cart.js";
+
 import { renderAuthHTML, initAuthPage, showAuthPage, hideAuthPage, showAuthView, syncAuthUI } from "./pages/auth.js";
+import { renderStaffHTML, initStaffPage, showStaffPage, hideStaffPage } from "./pages/staff.js";
 
 const app = document.querySelector("#app");
 
@@ -27,6 +29,7 @@ app.innerHTML = `
           <li class="nav-item"><a class="nav-link" href="${router.href('events')}">Events</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('bookings')}">Bookings</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
+          <li class="nav-item"><a class="nav-link" href="${router.href('staff')}">Staff</a></li>
         </ul>
         <div class="d-flex gap-2 ms-lg-3">
           <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
@@ -41,7 +44,9 @@ app.innerHTML = `
     ${renderEventsHTML()}
     ${renderBookingsHTML()}
     ${renderAuthHTML()}
+
     ${renderCartHTML()}
+    ${renderStaffHTML()}
 
     <footer class="footer">
       <div class="container">
@@ -69,6 +74,7 @@ const elements = {
   bookingsSection: document.querySelector("#bookingsSection"),
   authSection: document.querySelector("#authSection"),
   cartSection: document.querySelector("#cartSection"),
+  staffSection: document.querySelector("#staffSection"),
   eventsGrid: document.querySelector("#eventsGrid"),
   searchInput: document.querySelector("#searchInput"),
   bookingsList: document.querySelector("#bookingsList"),
@@ -101,6 +107,7 @@ const hideAllPages = () => {
   hideBookingsPage();
   hideCartPage();
   hideAuthPage();
+  hideStaffPage();
 };
 
 // --- Route Handlers ---
@@ -132,12 +139,18 @@ const renderAuthRoute = () => {
   showAuthPage();
 };
 
+const renderStaffRoute = () => {
+  hideAllPages();
+  showStaffPage();
+};
+
 // --- Router Setup ---
 router.register("/", renderHome);
 router.register("/events", renderEventsRoute);
 router.register("/bookings", renderBookingsRoute);
 router.register("/cart", renderCartRoute);
 router.register("/auth", renderAuthRoute);
+router.register("/staff", renderStaffRoute);
 
 // --- Initialize Page Modules ---
 initHomePage();
@@ -145,6 +158,7 @@ initEventsPage();
 initBookingsPage();
 initCartPage();
 initAuthPage();
+initStaffPage();
 
 // --- Global Event Listeners ---
 elements.eventsGrid.addEventListener("click", (event) => {
