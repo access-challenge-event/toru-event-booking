@@ -57,6 +57,7 @@ class Event(db.Model):
     ends_at = db.Column(db.DateTime, nullable=False)
     location = db.Column(db.String(255), nullable=False)
     is_free = db.Column(db.Boolean, nullable=False, default=True)
+    price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
@@ -202,6 +203,7 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "ends_at": event.ends_at.isoformat(),
         "location": event.location,
         "is_free": bool(event.is_free),
+        "price": float(event.price) if event.price else 0.00,
         "capacity": event.capacity,
         "spots_left": spots_left,
     }

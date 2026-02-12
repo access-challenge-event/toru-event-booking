@@ -20,11 +20,11 @@ app.innerHTML = `
       <div class="collapse navbar-collapse" id="navMenu">
         <ul class="navbar-nav ms-auto gap-lg-3">
           <li class="nav-item"><a class="nav-link" href="${router.href('')}">Home</a></li>
+<li class="nav-item"><a class="nav-link" href="${router.href('events')}">Events</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('bookings')}">Bookings</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
         </ul>
         <div class="d-flex gap-2 ms-lg-3">
-          <button class="btn btn-outline-dark btn-sm" id="navRegister">Register</button>
           <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
           <button class="btn btn-outline-dark btn-sm d-none" id="navLogout">Sign out</button>
         </div>
@@ -196,12 +196,12 @@ app.innerHTML = `
           </div>
           <div class="cart-summary">
             <h4>Checkout</h4>
-            <p class="mb-2">All events are free. Stripe is shown as a placeholder.</p>
+            <p class="mb-2">Review your booking details below.</p>
             <div class="cart-total">
               <span>Total</span>
-              <strong>£0.00</strong>
+              <strong id="cartTotal">£0.00</strong>
             </div>
-            <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe (placeholder)</button>
+            <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
             <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
             <p class="cart-note">You will receive confirmation in your bookings list.</p>
           </div>
@@ -245,12 +245,12 @@ const registerStatus = document.querySelector("#registerStatus");
 const authGreeting = document.querySelector("#authGreeting");
 const bookingStatus = document.querySelector("#bookingStatus");
 const navLogin = document.querySelector("#navLogin");
-const navRegister = document.querySelector("#navRegister");
 const navLogout = document.querySelector("#navLogout");
 const viewHistoryBtn = document.querySelector("#viewHistoryBtn");
 const refreshBookings = document.querySelector("#refreshBookings");
 const cartBadge = document.querySelector("#cartBadge");
 const cartList = document.querySelector("#cartList");
+const cartTotal = document.querySelector("#cartTotal");
 const clearCart = document.querySelector("#clearCart");
 const stripePayBtn = document.querySelector("#stripePayBtn");
 const checkoutBtn = document.querySelector("#checkoutBtn");
@@ -302,7 +302,6 @@ const syncAuthUI = () => {
   const isAuthed = Boolean(state.token);
   navLogout.classList.toggle("d-none", !isAuthed);
   navLogin.classList.toggle("d-none", isAuthed);
-  navRegister.classList.toggle("d-none", isAuthed);
   if (isAuthed && state.user) {
     const firstName = state.user.first_name || "";
     const lastName = state.user.last_name || "";
@@ -416,7 +415,7 @@ const renderEvents = (events) => {
           <div class="event-card h-100">
             <div class="event-card-top">
               <div>
-                <p class="tag">${event.is_free ? "Free" : "Paid"}</p>
+                <p class="tag">${event.is_free ? "Free" : `£${event.price.toFixed(2)}`}</p>
                 <h5>${event.title}</h5>
               </div>
               <span class="chip">${formatDate(event.starts_at, {
@@ -576,12 +575,20 @@ const renderCart = () => {
         <p class="mb-0">Browse events and add bookings to checkout.</p>
       </div>
     `;
+    cartTotal.textContent = "£0.00";
     return;
   }
 
+  const total = state.cart.reduce((sum, item) => {
+    const price = item.event.price || 0;
+    return sum + (price * item.guest_count);
+  }, 0);
+
   cartList.innerHTML = state.cart
     .map(
-      (item) => `
+      (item) => {
+        const itemPrice = (item.event.price || 0) * item.guest_count;
+        return `
         <div class="cart-item" data-cart-id="${item.event.id}">
           <div>
             <h5>${item.event.title}</h5>
@@ -590,7 +597,7 @@ const renderCart = () => {
               month: "short",
               day: "numeric",
             })} · ${formatTime(item.event.starts_at)} · ${item.event.location}</p>
-            <p class="text-muted mb-0">Spaces left: ${item.event.spots_left ?? item.event.capacity}</p>
+            <p class="text-muted mb-0">${item.event.is_free ? "Free" : `£${item.event.price.toFixed(2)} per guest`} · Spaces left: ${item.event.spots_left ?? item.event.capacity}</p>
           </div>
           <div class="cart-controls">
             <label class="form-label">Guests</label>
@@ -606,12 +613,16 @@ const renderCart = () => {
             <textarea class="form-control" rows="2" data-cart-names placeholder="Alex, Priya, Sam">${
               item.guest_names.join(", ")
             }</textarea>
+            ${itemPrice > 0 ? `<p class="text-end mb-2"><strong>£${itemPrice.toFixed(2)}</strong></p>` : ""}
             <button class="btn btn-outline-dark btn-sm" data-cart-remove>Remove</button>
           </div>
         </div>
-      `
+      `;
+      }
     )
     .join("");
+  
+  cartTotal.textContent = `£${total.toFixed(2)}`;
 };
 
 const loadBookings = async () => {
@@ -801,6 +812,7 @@ cartList.addEventListener("change", (event) => {
       .slice(0, item.guest_count);
   }
   saveCart();
+  renderCart();
 });
 
 cartList.addEventListener("click", (event) => {
@@ -839,11 +851,6 @@ checkoutBtn.addEventListener("click", checkoutCart);
 navLogin.addEventListener("click", () => {
   router.navigateTo("auth");
   showAuthView("login");
-});
-
-navRegister.addEventListener("click", () => {
-  router.navigateTo("auth");
-  showAuthView("register");
 });
 
 navLogout.addEventListener("click", () => {
