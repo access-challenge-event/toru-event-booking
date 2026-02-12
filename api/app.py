@@ -59,6 +59,7 @@ class Event(db.Model):
     is_free = db.Column(db.Boolean, nullable=False, default=True)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
+    category = db.Column(db.String(50), nullable=True)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -144,10 +145,32 @@ def ensure_user_columns():
             )
 
 
+def ensure_event_columns():
+    with db.engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = :schema_name AND TABLE_NAME = 'events'
+                """
+            ),
+            {"schema_name": db_name},
+        )
+        columns = {row[0] for row in result}
+        if "category" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE events ADD COLUMN category VARCHAR(50) NULL"
+                )
+            )
+
+
 with app.app_context():
     db.create_all()
     ensure_user_columns()
     ensure_booking_columns()
+    ensure_event_columns()
 
 
 def json_error(message: str, status: int = 400):
@@ -205,7 +228,8 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "is_free": bool(event.is_free),
         "price": float(event.price) if event.price else 0.00,
         "capacity": event.capacity,
-        "spots_left": spots_left,
+            "spots_left": spots_left,
+            "category": event.category if hasattr(event, "category") else None,
     }
 
 
