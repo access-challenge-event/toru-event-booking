@@ -30,6 +30,9 @@ jwt_secret = os.getenv("JWT_SECRET", "change_me")
 
 db = SQLAlchemy(app)
 
+# Maximum guests allowed per single booking
+MAX_GUESTS_PER_BOOKING = 4
+
 
 class User(db.Model):
     __tablename__ = "users"
@@ -412,6 +415,9 @@ def create_booking(current_user: User):
     if guest_count < 1:
         return json_error("Guest count must be at least 1")
 
+    if guest_count > MAX_GUESTS_PER_BOOKING:
+        return json_error(f"Guest count must be {MAX_GUESTS_PER_BOOKING} or fewer")
+
     guest_names_raw = payload.get("guest_names") or []
     if isinstance(guest_names_raw, str):
         guest_names = [
@@ -443,6 +449,10 @@ def create_booking(current_user: User):
     available = event.capacity - int(confirmed or 0)
     if event.capacity > 0 and guest_count > available:
         return json_error("Not enough spaces available", 409)
+
+    # enforce max per-booking limit server-side as well
+    if guest_count > MAX_GUESTS_PER_BOOKING:
+        return json_error(f"Cannot book more than {MAX_GUESTS_PER_BOOKING} guests at once", 409)
 
     booking = Booking(
         user_id=current_user.id,

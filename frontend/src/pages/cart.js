@@ -136,7 +136,7 @@ export const renderCart = () => {
           <div class="cart-controls">
             <label class="form-label">Guests</label>
             <select class="form-select" data-cart-guests>
-              ${Array.from({ length: Math.min(item.maxGuests, 6) }, (_, i) => i + 1)
+              ${Array.from({ length: Math.min(item.maxGuests, 4) }, (_, i) => i + 1)
                 .map(
                   (count) =>
                     `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`
