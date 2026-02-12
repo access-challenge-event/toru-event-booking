@@ -49,7 +49,7 @@ export const hideBookingsPage = () => {
 const renderBookings = (bookings) => {
   const bookingsList = document.querySelector("#bookingsList");
   if (!bookingsList) return;
-  
+
   if (!state.token) {
     bookingsList.innerHTML = `
       <div class="booking-empty">
@@ -78,20 +78,15 @@ const renderBookings = (bookings) => {
             <h6>${booking.event.title}</h6>
             <p class="mb-0">
               ${formatDate(booking.event.starts_at, {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-              })} · ${formatTime(booking.event.starts_at)} · ${booking.event.location}
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      })} · ${formatTime(booking.event.starts_at)} · ${booking.event.location}
             </p>
-            <p class="mb-0 booking-guest">${
-              booking.guest_count > 1
-                ? `Guests: ${booking.guest_count}${
-                    booking.guest_names?.length
-                      ? ` · ${booking.guest_names.join(", ")}`
-                      : ""
-                  }`
-                : ""
-            }</p>
+            <p class="mb-0 booking-guest">${booking.guest_names?.length
+          ? `Guests: ${booking.guest_names.map(g => (typeof g === 'object' ? `${g.name} (${g.type})` : g)).join(", ")}`
+          : (booking.guest_count > 1 ? `Guests: ${booking.guest_count}` : "Guest: 1")
+        }</p>
           </div>
           <button class="btn btn-outline-dark btn-sm cancel-btn" data-booking-id="${booking.id}">
             Cancel
@@ -105,15 +100,15 @@ const renderBookings = (bookings) => {
 export const loadBookings = async () => {
   const bookingStatus = document.querySelector("#bookingStatus");
   const bookingsList = document.querySelector("#bookingsList");
-  
+
   if (!bookingsList) return;
   if (bookingStatus) bookingStatus.textContent = "";
-  
+
   if (!state.token) {
     renderBookings([]);
     return;
   }
-  
+
   try {
     const data = await apiFetch("/api/bookings");
     renderBookings(data);
@@ -130,7 +125,7 @@ export const loadBookings = async () => {
 const handleCancel = async (bookingId) => {
   const bookingStatus = document.querySelector("#bookingStatus");
   if (bookingStatus) bookingStatus.textContent = "";
-  
+
   try {
     await apiFetch(`/api/bookings/${bookingId}`, { method: "DELETE" });
     loadBookings();
@@ -142,10 +137,10 @@ const handleCancel = async (bookingId) => {
 
 const loadHistory = async () => {
   if (!state.token) return;
-  
+
   const bookingStatus = document.querySelector("#bookingStatus");
   if (bookingStatus) bookingStatus.textContent = "";
-  
+
   try {
     const data = await apiFetch("/api/bookings/history");
     renderBookings(data);
@@ -157,7 +152,7 @@ const loadHistory = async () => {
 export const updateAuthGreeting = () => {
   const authGreeting = document.querySelector("#authGreeting");
   if (!authGreeting) return;
-  
+
   if (state.token && state.user) {
     const firstName = state.user.first_name || "";
     const lastName = state.user.last_name || "";

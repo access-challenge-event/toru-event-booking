@@ -63,8 +63,47 @@ export const initCartPage = () => {
         .filter(Boolean)
         .slice(0, item.guest_count);
     }
+
+    // Resize guest names array when count changes
+    if (item.guest_count > item.guest_names.length) {
+      // Expand array with empty objects if growing
+      while (item.guest_names.length < item.guest_count) {
+        item.guest_names.push({ name: "", type: "Adult" });
+      }
+    } else if (item.guest_count < item.guest_names.length) {
+      // Shrink array if reducing
+      item.guest_names = item.guest_names.slice(0, item.guest_count);
+    }
+
     saveCart();
     renderCart();
+  });
+
+  cartList?.addEventListener("input", (event) => {
+    const cartItem = event.target.closest(".cart-item");
+    if (!cartItem) return;
+
+    if (event.target.dataset.guestField) {
+      const eventId = Number(cartItem.dataset.cartId);
+      const item = state.cart.find((cart) => cart.event.id === eventId);
+      if (!item) return;
+
+      const index = Number(event.target.dataset.guestIndex);
+      const field = event.target.dataset.guestField; // 'name' or 'type'
+
+      // Ensure guest object exists
+      if (!item.guest_names[index]) {
+        item.guest_names[index] = { name: "", type: "Adult" };
+      }
+
+      // Handle legacy string data if present
+      if (typeof item.guest_names[index] === "string") {
+        item.guest_names[index] = { name: item.guest_names[index], type: "Adult" };
+      }
+
+      item.guest_names[index][field] = event.target.value;
+      saveCart();
+    }
   });
 
   cartList?.addEventListener("click", (event) => {
@@ -126,8 +165,22 @@ export const renderCart = () => {
   }
 
   const total = state.cart.reduce((sum, item) => {
-    const price = item.event.price || 0;
-    return sum + (price * item.guest_count);
+    const basePrice = item.event.price || 0;
+    if (basePrice === 0) return sum;
+
+    let itemSum = 0;
+    // Calculate price for each guest based on type
+    for (let i = 0; i < item.guest_count; i++) {
+      const guest = item.guest_names[i];
+      const type = (guest && typeof guest === 'object' ? guest.type : 'Adult') || 'Adult';
+
+      let multiplier = 1.0;
+      if (type === 'Child' || type === 'Concession') {
+        multiplier = 0.2; // 20% of adult price
+      }
+      itemSum += basePrice * multiplier;
+    }
+    return sum + itemSum;
   }, 0);
 
   cartList.innerHTML = state.cart
@@ -139,7 +192,17 @@ export const renderCart = () => {
         if (available === 0) item.guest_count = 0;
         if (item.guest_count > available) item.guest_count = available;
 
-        const itemPrice = (item.event.price || 0) * item.guest_count;
+        // Calculate item total based on guest types
+        const itemPrice = Array.from({ length: item.guest_count }).reduce((sum, _, i) => {
+          // Ensure guest_names has valid objects for rendering loop later
+          if (!item.guest_names[i]) item.guest_names[i] = { name: "", type: "Adult" };
+          const type = (typeof item.guest_names[i] === 'object' ? item.guest_names[i].type : 'Adult') || 'Adult';
+
+          let multiplier = 1.0;
+          if (type === 'Child' || type === 'Concession') multiplier = 0.2;
+
+          return sum + ((item.event.price || 0) * multiplier);
+        }, 0);
         return `
         <div class="cart-item" data-cart-id="${item.event.id}">
           <div>
@@ -162,9 +225,28 @@ export const renderCart = () => {
               .map((count) => `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`)
               .join("")}</select>`;
           })()}
-            <label class="form-label">Guest names (optional)</label>
-            <textarea class="form-control" rows="2" data-cart-names placeholder="Alex, Priya, Sam">${item.guest_names.join(", ")
-          }</textarea>
+            
+            <div class="mt-2">
+              <label class="form-label mb-1">Guest Details</label>
+              ${Array.from({ length: item.guest_count }, (_, i) => {
+            let guest = item.guest_names[i] || { name: "", type: "Adult" };
+            if (typeof guest === "string") guest = { name: guest, type: "Adult" };
+
+            return `
+                  <div class="d-flex gap-2 mb-2">
+                    <input type="text" class="form-control" placeholder="Guest Name" 
+                      data-guest-index="${i}" data-guest-field="name" value="${guest.name || ''}">
+                    <select class="form-select" style="max-width: 150px;" 
+                      data-guest-index="${i}" data-guest-field="type">
+                      <option value="Adult" ${guest.type === 'Adult' ? 'selected' : ''}>Adult</option>
+                      <option value="Child" ${guest.type === 'Child' ? 'selected' : ''}>Child</option>
+                      <option value="Concession" ${guest.type === 'Concession' ? 'selected' : ''}>Concession (65+)</option>
+                    </select>
+                  </div>
+                `;
+          }).join("")}
+            </div>
+            
             ${itemPrice > 0 ? `<p class="text-end mb-2"><strong>£${itemPrice.toFixed(2)}</strong></p>` : ""}
             <button class="btn btn-outline-dark btn-sm" data-cart-remove>Remove</button>
           </div>

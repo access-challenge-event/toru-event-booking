@@ -514,7 +514,12 @@ def create_booking(current_user: User):
             name.strip() for name in guest_names_raw.split(",") if name.strip()
         ]
     elif isinstance(guest_names_raw, list):
-        guest_names = [str(name).strip() for name in guest_names_raw if str(name).strip()]
+        guest_names = []
+        for g in guest_names_raw:
+            if isinstance(g, str) and g.strip():
+                guest_names.append(g.strip())
+            elif isinstance(g, dict):
+                guest_names.append(g)
     else:
         guest_names = []
 
@@ -592,7 +597,12 @@ def create_guest_booking():
             n.strip() for n in guest_names_raw.split(",") if n.strip()
         ]
     elif isinstance(guest_names_raw, list):
-        guest_names = [str(n).strip() for n in guest_names_raw if str(n).strip()]
+        guest_names = []
+        for g in guest_names_raw:
+            if isinstance(g, str) and g.strip():
+                guest_names.append(g.strip())
+            elif isinstance(g, dict):
+                guest_names.append(g)
     else:
         guest_names = []
     if guest_names and len(guest_names) > guest_count:
