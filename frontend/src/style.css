@@ -1,6 +1,8 @@
 :root {
   color-scheme: light;
   --ink: #1c1a17;
+  --brand: #299194;
+  --brand-dark: #299194;
   --sand: #f4eee6;
   --butter: #f7d7a1;
   --sage: #c9d0bf;
@@ -10,7 +12,7 @@
 
 body {
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top, #fff6e6 0%, #f7efe3 45%, #efe3d4 100%);
+  background: #f6f8f5;
   color: var(--ink);
   min-height: 100vh;
 }
@@ -32,10 +34,14 @@ h5 {
 }
 
 .hero {
-  background: linear-gradient(135deg, #fff3df 0%, #f7ead8 55%, #eedfca 100%);
-  border-bottom: 1px solid #e4d4bf;
+  /* hero uses Delapré Abbey imagery with a subtle dark overlay for legibility */
+  background-image: linear-gradient(rgba(11, 31, 23, 0.45), rgba(11, 31, 23, 0.18)), url('/hero.jpg');
+  background-size: cover;
+  background-position: center center;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
   position: relative;
   overflow: hidden;
+  color: #fff;
 }
 
 .hero::after {
@@ -54,6 +60,23 @@ h5 {
   align-items: center;
   gap: 0.75rem;
   font-weight: 700;
+}
+
+/* Brand / navbar colour to match Delapré Abbey */
+.navbar {
+  background: var(--brand-dark) !important;
+}
+.navbar .navbar-brand,
+.navbar .nav-link,
+.navbar .btn {
+  color: #fff !important;
+}
+.navbar .nav-link {
+  color: rgba(255,255,255,0.95) !important;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link:focus {
+  color: #e6f6ef !important;
 }
 
 .cart-badge {
@@ -76,7 +99,7 @@ h5 {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  background: #1c1a17;
+  background: var(--brand) ;
   color: #fff;
   font-weight: 700;
 }
@@ -87,6 +110,17 @@ h5 {
 
 .hero-body {
   padding: 3rem 0 4rem;
+}
+
+.hero .eyebrow,
+.hero h1,
+.hero .lead {
+  color: #fff;
+}
+
+.hero-card {
+  background: rgba(255,255,255,0.95);
+  color: var(--ink);
 }
 
 .eyebrow {
@@ -461,6 +495,18 @@ h1 {
 
 .btn {
   border-radius: 999px;
+  background: #daaa00;
+  color: #ffffff;
+  border: none;
+  transition: background-color 180ms ease, color 180ms ease, transform 120ms ease;
+}
+
+.btn:hover,
+.btn:focus {
+  background: #6fbaa8;
+  color: #2c2f31;
+  text-decoration: none;
+  transform: translateY(-1px);
 }
 
 .btn-outline-dark.active {
