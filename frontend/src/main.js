@@ -24,6 +24,7 @@ app.innerHTML = `
           <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
         </ul>
         <div class="d-flex gap-2 ms-lg-3">
+          <button class="btn btn-outline-dark btn-sm" id="navRegister">Register</button>
           <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
           <button class="btn btn-outline-dark btn-sm d-none" id="navLogout">Sign out</button>
         </div>
@@ -836,13 +837,13 @@ stripePayBtn.addEventListener("click", checkoutCart);
 checkoutBtn.addEventListener("click", checkoutCart);
 
 navLogin.addEventListener("click", () => {
-  showAuthView("login");
   router.navigateTo("auth");
+  showAuthView("login");
 });
 
 navRegister.addEventListener("click", () => {
-  showAuthView("register");
   router.navigateTo("auth");
+  showAuthView("register");
 });
 
 navLogout.addEventListener("click", () => {
