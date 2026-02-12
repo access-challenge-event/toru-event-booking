@@ -337,6 +337,78 @@ def event_details(event_id: int):
     return jsonify(event_to_dict(event))
 
 
+@app.get("/api/categories")
+def list_categories():
+    categories = Category.query.order_by(Category.name.asc()).all()
+    return jsonify([{"id": c.id, "name": c.name} for c in categories])
+
+
+@app.get("/api/locations")
+def list_locations():
+    # Fetch distinct locations from existing events
+    locations = db.session.query(Event.location).distinct().order_by(Event.location.asc()).all()
+    return jsonify([loc[0] for loc in locations if loc[0]])
+
+
+@app.post("/api/events")
+@require_auth
+def create_event(current_user: User):
+    # In a real app we'd check current_user.is_staff
+    payload = request.get_json(silent=True) or {}
+    
+    title = (payload.get("title") or "").strip()
+    description = (payload.get("description") or "").strip()
+    location = (payload.get("location") or "").strip()
+    try:
+        starts_at = datetime.fromisoformat(payload.get("starts_at", ""))
+        ends_at = datetime.fromisoformat(payload.get("ends_at", ""))
+    except ValueError:
+        return json_error("Invalid date format")
+
+    if not title or not location or not starts_at or not ends_at:
+        return json_error("Title, location, start time, and end time are required")
+
+    capacity = payload.get("capacity", 0)
+    try:
+        capacity = int(capacity)
+    except (ValueError, TypeError):
+        return json_error("Capacity must be a number")
+
+    is_free = payload.get("is_free", False)
+    price = payload.get("price", 0.0)
+    try:
+        price = float(price)
+    except (ValueError, TypeError):
+        return json_error("Price must be a number")
+
+    if is_free:
+        price = 0.0
+
+    category_id = payload.get("category_id")
+    if category_id:
+        try:
+            category_id = int(category_id)
+            if not db.session.get(Category, category_id):
+                return json_error("Invalid category ID", 400)
+        except (ValueError, TypeError):
+            return json_error("Invalid category ID", 400)
+
+    event = Event(
+        title=title,
+        description=description or "No description provided.",
+        starts_at=starts_at,
+        ends_at=ends_at,
+        location=location,
+        is_free=bool(is_free),
+        price=price,
+        capacity=capacity,
+        category_id=category_id
+    )
+    db.session.add(event)
+    db.session.commit()
+    return jsonify(event_to_dict(event)), 201
+
+
 @app.post("/api/auth/register")
 def register_user():
     payload = request.get_json(silent=True) or {}
