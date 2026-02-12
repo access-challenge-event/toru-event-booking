@@ -1,0 +1,76 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: delapre_api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./api:/app
+    environment:
+      APP_ENV: development
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: delapre_events
+      DB_USER: delapre_user
+      DB_PASS: delapre_password
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: delapre_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - api
+
+  db:
+    image: mysql:8.4
+    container_name: delapre_db
+    environment:
+      MYSQL_DATABASE: delapre_events
+      MYSQL_USER: delapre_user
+      MYSQL_PASSWORD: delapre_password
+      MYSQL_ROOT_PASSWORD: root_password_change_me
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: delapre_pma
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: delapre_user
+      PMA_PASSWORD: delapre_password
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    container_name: delapre_swagger_ui
+    ports:
+      - "8082:8080"
+    environment:
+      SWAGGER_JSON_URL: http://localhost:8080/api/docs/openapi.json
+    depends_on:
+      - api
+
+volumes:
+  db_data:
