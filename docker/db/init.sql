@@ -79,3 +79,9 @@ SELECT * FROM (
   UNION ALL SELECT 'Calligraphy Workshop','Learn the art of beautiful handwriting and illumination.','2026-04-05 14:00:00','2026-04-05 17:00:00','Studio Room',0,18.50,10,NULL
 ) AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM events LIMIT 1);
+
+-- Seed default staff user (password: 'password')
+INSERT INTO users (email, password_hash, first_name, last_name, is_staff)
+SELECT 'staff@example.com', 'pbkdf2:sha256:260000$g7kI2aI2$9d45862d53c3937397e5b152d19f5635f116544023797825590983193e28aa45', 'Staff', 'User', 1
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@example.com');
