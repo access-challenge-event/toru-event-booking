@@ -104,8 +104,8 @@ export const syncAuthUI = () => {
 const handleLogin = async (event) => {
   event.preventDefault();
   console.log("Login form submitted");
-  const { loginStatus, eventsGrid } = elements;
-  loginStatus.textContent = "";
+  const loginStatus = document.querySelector("#loginStatus");
+  if (loginStatus) loginStatus.textContent = "";
 
   try {
     const payload = {
