@@ -100,7 +100,7 @@ export const syncAuthUI = () => {
 
 const handleLogin = async (event) => {
   event.preventDefault();
-  console.log("🔐 Login form submitted");
+  console.log("Login form submitted");
   const { loginStatus, eventsGrid } = elements;
   loginStatus.textContent = "";
   
@@ -109,12 +109,12 @@ const handleLogin = async (event) => {
       email: document.querySelector("#loginEmail").value.trim(),
       password: document.querySelector("#loginPassword").value,
     };
-    console.log("📝 Login payload:", { email: payload.email });
+    console.log("Login payload:", { email: payload.email });
     const data = await apiFetch("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    console.log("✓ Login successful");
+    console.log("Login successful");
     setAuthState(data.token, data.user);
     syncAuthUI();
     loadEvents();
@@ -127,7 +127,7 @@ const handleLogin = async (event) => {
     router.navigateTo("bookings");
     loadBookings();
   } catch (error) {
-    console.error("❌ Login error:", error);
+    console.error("Login error:", error);
     loginStatus.textContent = error.message;
     loginStatus.classList.remove("success");
   }

@@ -179,14 +179,14 @@ showAuthView("login", elements);
 
 // Debug: Verify event listeners are attached
 console.log("Elements loaded:", {
-  navLogin: elements.navLogin ? "✓" : "✗",
-  loginForm: elements.loginForm ? "✓" : "✗",
-  registerForm: elements.registerForm ? "✓" : "✗",
-  eventsGrid: elements.eventsGrid ? "✓" : "✗",
-  authSection: elements.authSection ? "✓" : "✗",
+  navLogin: elements.navLogin ? "Loaded" : "Missing",
+  loginForm: elements.loginForm ? "Loaded" : "Missing",
+  registerForm: elements.registerForm ? "Loaded" : "Missing",
+  eventsGrid: elements.eventsGrid ? "Loaded" : "Missing",
+  authSection: elements.authSection ? "Loaded" : "Missing",
 });
 
 // Start router after all routes are registered
 router.start();
 
-console.log("✓ App initialized and router started");
+console.log("App initialized and router started");
