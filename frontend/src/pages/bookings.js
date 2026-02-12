@@ -1,22 +1,54 @@
 import { state } from "../state.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
 import { apiFetch } from "../utils/api.js";
+import { loadEvents } from "./events.js";
 
-export const initBookingsPage = (elements) => {
-  const { bookingsList, viewHistoryBtn, refreshBookings } = elements;
+export const renderBookingsHTML = () => `
+  <section id="bookingsSection" class="container section-gap d-none">
+    <div class="section-header">
+      <div>
+        <h2>Your bookings</h2>
+        <p id="authGreeting">Sign in to manage your reservations.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-dark btn-sm" id="viewHistoryBtn">View history</button>
+        <button class="btn btn-dark btn-sm" id="refreshBookings">Refresh bookings</button>
+      </div>
+    </div>
+    <p class="status-line" id="bookingStatus"></p>
+    <div class="booking-panel">
+      <div id="bookingsList"></div>
+    </div>
+  </section>
+`;
 
-  bookingsList.addEventListener("click", (event) => {
+export const initBookingsPage = () => {
+  const bookingsList = document.querySelector("#bookingsList");
+  const viewHistoryBtn = document.querySelector("#viewHistoryBtn");
+  const refreshBookings = document.querySelector("#refreshBookings");
+
+  bookingsList?.addEventListener("click", (event) => {
     const button = event.target.closest(".cancel-btn");
     if (!button) return;
-    handleCancel(button.dataset.bookingId, elements);
+    handleCancel(button.dataset.bookingId);
   });
 
-  viewHistoryBtn.addEventListener("click", () => loadHistory(elements));
-  refreshBookings.addEventListener("click", () => loadBookings(elements));
+  viewHistoryBtn?.addEventListener("click", loadHistory);
+  refreshBookings?.addEventListener("click", loadBookings);
 };
 
-export const renderBookings = (bookings, elements) => {
-  const { bookingsList } = elements;
+export const showBookingsPage = () => {
+  document.querySelector("#bookingsSection")?.classList.remove("d-none");
+  loadBookings();
+};
+
+export const hideBookingsPage = () => {
+  document.querySelector("#bookingsSection")?.classList.add("d-none");
+};
+
+const renderBookings = (bookings) => {
+  const bookingsList = document.querySelector("#bookingsList");
+  if (!bookingsList) return;
   
   if (!state.token) {
     bookingsList.innerHTML = `
@@ -70,18 +102,21 @@ export const renderBookings = (bookings, elements) => {
     .join("");
 };
 
-export const loadBookings = async (elements) => {
-  const { bookingsList, bookingStatus } = elements;
-  bookingStatus.textContent = "";
+export const loadBookings = async () => {
+  const bookingStatus = document.querySelector("#bookingStatus");
+  const bookingsList = document.querySelector("#bookingsList");
+  
+  if (!bookingsList) return;
+  if (bookingStatus) bookingStatus.textContent = "";
   
   if (!state.token) {
-    renderBookings([], elements);
+    renderBookings([]);
     return;
   }
   
   try {
     const data = await apiFetch("/api/bookings");
-    renderBookings(data, elements);
+    renderBookings(data);
   } catch (error) {
     bookingsList.innerHTML = `
       <div class="booking-empty">
@@ -92,31 +127,42 @@ export const loadBookings = async (elements) => {
   }
 };
 
-const handleCancel = async (bookingId, elements) => {
-  const { bookingStatus, eventsGrid } = elements;
-  bookingStatus.textContent = "";
+const handleCancel = async (bookingId) => {
+  const bookingStatus = document.querySelector("#bookingStatus");
+  if (bookingStatus) bookingStatus.textContent = "";
   
   try {
     await apiFetch(`/api/bookings/${bookingId}`, { method: "DELETE" });
-    loadBookings(elements);
-    // Reload events to update spots
-    const { loadEvents } = await import("./events.js");
-    loadEvents(eventsGrid);
+    loadBookings();
+    loadEvents();
   } catch (error) {
-    bookingStatus.textContent = error.message;
+    if (bookingStatus) bookingStatus.textContent = error.message;
   }
 };
 
-const loadHistory = async (elements) => {
-  const { bookingStatus } = elements;
-  
+const loadHistory = async () => {
   if (!state.token) return;
   
-  bookingStatus.textContent = "";
+  const bookingStatus = document.querySelector("#bookingStatus");
+  if (bookingStatus) bookingStatus.textContent = "";
+  
   try {
     const data = await apiFetch("/api/bookings/history");
-    renderBookings(data, elements);
+    renderBookings(data);
   } catch (error) {
-    bookingStatus.textContent = error.message;
+    if (bookingStatus) bookingStatus.textContent = error.message;
+  }
+};
+
+export const updateAuthGreeting = () => {
+  const authGreeting = document.querySelector("#authGreeting");
+  if (!authGreeting) return;
+  
+  if (state.token && state.user) {
+    const firstName = state.user.first_name || "";
+    const lastName = state.user.last_name || "";
+    authGreeting.textContent = `Welcome back, ${firstName} ${lastName}`.trim() + ".";
+  } else {
+    authGreeting.textContent = "Sign in to manage your reservations.";
   }
 };

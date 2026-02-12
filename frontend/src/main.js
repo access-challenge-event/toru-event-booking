@@ -3,11 +3,11 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./style.css";
 import { router } from "./router.js";
 import { state, setAuthState, saveCart } from "./state.js";
-import { initHomePage } from "./pages/home.js";
-import { initEventsPage, renderEventsPage, loadEvents } from "./pages/events.js";
-import { initBookingsPage, loadBookings } from "./pages/bookings.js";
-import { initCartPage, renderCart, addToCart } from "./pages/cart.js";
-import { initAuthPage, showAuthView, syncAuthUI } from "./pages/auth.js";
+import { renderHomeHTML, initHomePage, showHomePage, hideHomePage } from "./pages/home.js";
+import { renderEventsHTML, initEventsPage, showEventsPage, hideEventsPage, loadEvents } from "./pages/events.js";
+import { renderBookingsHTML, initBookingsPage, showBookingsPage, hideBookingsPage, loadBookings, updateAuthGreeting } from "./pages/bookings.js";
+import { renderCartHTML, initCartPage, showCartPage, hideCartPage, renderCart, addToCart } from "./pages/cart.js";
+import { renderAuthHTML, initAuthPage, showAuthPage, hideAuthPage, showAuthView, syncAuthUI } from "./pages/auth.js";
 
 const app = document.querySelector("#app");
 
@@ -37,181 +37,11 @@ app.innerHTML = `
   </nav>
 
   <main class="page">
-    <header class="hero" id="homeSection">
-      <div class="container hero-body">
-        <div class="row align-items-center g-4">
-          <div class="col-lg-6">
-            <p class="eyebrow">Delapre Abbey</p>
-            <h1>Book free events in a calm, guided flow.</h1>
-            <p class="lead">Explore tours, talks, and family days. Create an account, reserve your spot, and manage bookings in one place.</p>
-            <div class="d-flex gap-3 flex-wrap">
-              <button class="btn btn-dark btn-lg" id="browseBtn">Browse events</button>
-              <button class="btn btn-outline-dark btn-lg" id="myBookingsBtn">View my bookings</button>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="hero-card">
-              <div class="hero-card-top">
-                <div>
-                  <p class="tag">Next up</p>
-                  <h3>Abbey Gardens Tour</h3>
-                  <p class="mb-2">Sun, Mar 1 · 10:00 AM</p>
-                  <p class="text-muted">Delapre Abbey Gardens</p>
-                </div>
-                <div class="hero-badge">Free</div>
-              </div>
-              <div class="hero-card-bottom">
-                <div>
-                  <p class="mb-1">Spaces left</p>
-                  <strong>12</strong>
-                </div>
-                <button class="btn btn-dark">Reserve spot</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <section id="howSection" class="container section-gap">
-      <div class="section-header">
-        <h2>Your booking journey</h2>
-        <p>Designed for clarity and ease, from first browse to confirmation.</p>
-      </div>
-      <div class="row g-4">
-        <div class="col-md-4">
-          <div class="step-card">
-            <p class="step-number">01</p>
-            <h5>Browse events</h5>
-            <p>Filter by day, time, and venue. All events are free to attend.</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="step-card">
-            <p class="step-number">02</p>
-            <h5>Create an account</h5>
-            <p>Save your details once and manage all bookings in one dashboard.</p>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="step-card">
-            <p class="step-number">03</p>
-            <h5>Confirm your place</h5>
-            <p>Reserve in seconds, then reschedule or cancel whenever needed.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="eventsSection" class="container section-gap d-none">
-      <div class="section-header">
-        <h2>Upcoming events</h2>
-      </div>
-      <div class="mb-4">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-6">
-            <input type="text" class="form-control" id="searchInput" placeholder="Search events by name...">
-          </div>
-          <div class="col-md-6">
-            <div class="btn-group w-100" role="group">
-              <button type="button" class="btn btn-outline-dark filter-btn active" data-filter="all">All</button>
-              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="tours">Tours</button>
-              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="talks">Talks</button>
-              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="family">Family</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="eventsGrid" class="row g-4"></div>
-    </section>
-
-    <section id="bookingsSection" class="container section-gap d-none">
-      <div class="section-header">
-        <div>
-          <h2>Your bookings</h2>
-          <p id="authGreeting">Sign in to manage your reservations.</p>
-        </div>
-        <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-dark btn-sm" id="viewHistoryBtn">View history</button>
-          <button class="btn btn-dark btn-sm" id="refreshBookings">Refresh bookings</button>
-        </div>
-      </div>
-      <p class="status-line" id="bookingStatus"></p>
-      <div class="booking-panel">
-        <div id="bookingsList"></div>
-      </div>
-    </section>
-
-    <section id="authSection" class="auth-page d-none">
-      <div class="container">
-        <div class="auth-shell">
-          <div class="auth-card" id="loginCard">
-            <h3>Sign in</h3>
-            <p>Welcome back. Use your details to access your bookings.</p>
-            <form class="vstack gap-3" id="loginForm">
-              <input class="form-control" type="email" placeholder="Email address" id="loginEmail" required />
-              <input class="form-control" type="password" placeholder="Password" id="loginPassword" required />
-              <button class="btn btn-dark" type="submit">Sign in</button>
-              <p class="auth-status" id="loginStatus"></p>
-              <p class="auth-footnote">
-                New here?
-                <button class="link-button" type="button" data-auth-switch="register">Create an account</button>
-              </p>
-            </form>
-          </div>
-          <div class="auth-card light d-none" id="registerCard">
-            <h3>Create account</h3>
-            <p>Register once to manage bookings and save your details.</p>
-            <form class="vstack gap-3" id="registerForm">
-              <div class="row g-2">
-                <div class="col-12 col-md-6">
-                  <input class="form-control" type="text" placeholder="First name" id="registerFirstName" required />
-                </div>
-                <div class="col-12 col-md-6">
-                  <input class="form-control" type="text" placeholder="Last name" id="registerLastName" required />
-                </div>
-              </div>
-              <input class="form-control" type="email" placeholder="Email address" id="registerEmail" required />
-              <input class="form-control" type="password" placeholder="Password" id="registerPassword" required />
-              <button class="btn btn-dark" type="submit">Create account</button>
-              <p class="auth-status" id="registerStatus"></p>
-              <p class="auth-footnote">
-                Already have an account?
-                <button class="link-button" type="button" data-auth-switch="login">Sign in</button>
-              </p>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="cartSection" class="cart-page d-none">
-      <div class="container">
-        <div class="section-header">
-          <div>
-            <h2>Your cart</h2>
-            <p>Confirm attendee details and checkout.</p>
-          </div>
-          <button class="btn btn-outline-dark btn-sm" id="clearCart">Clear cart</button>
-        </div>
-        <div class="cart-shell">
-          <div>
-            <div id="cartList"></div>
-          </div>
-          <div class="cart-summary">
-            <h4>Checkout</h4>
-            <p class="mb-2">Review your booking details below.</p>
-            <div class="cart-total">
-              <span>Total</span>
-              <strong id="cartTotal">£0.00</strong>
-            </div>
-            <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
-            <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
-            <p class="cart-note">You will receive confirmation in your bookings list.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    ${renderHomeHTML()}
+    ${renderEventsHTML()}
+    ${renderBookingsHTML()}
+    ${renderAuthHTML()}
+    ${renderCartHTML()}
 
     <footer class="footer">
       <div class="container">
@@ -235,7 +65,6 @@ app.innerHTML = `
 // --- DOM Elements ---
 const elements = {
   homeSection: document.querySelector("#homeSection"),
-  howSection: document.querySelector("#howSection"),
   eventsSection: document.querySelector("#eventsSection"),
   bookingsSection: document.querySelector("#bookingsSection"),
   authSection: document.querySelector("#authSection"),
@@ -265,79 +94,83 @@ const elements = {
   myBookingsBtn: document.querySelector("#myBookingsBtn"),
 };
 
-// --- Page Visibility Control ---
-const showPage = (route) => {
-  elements.homeSection.classList.toggle("d-none", route !== "/" && route !== "");
-  elements.howSection.classList.toggle("d-none", route !== "/" && route !== "");
-  elements.eventsSection.classList.toggle("d-none", route !== "events");
-  elements.bookingsSection.classList.toggle("d-none", route !== "bookings");
-  elements.cartSection.classList.toggle("d-none", route !== "cart");
-  elements.authSection.classList.toggle("d-none", route !== "auth");
+// --- Hide All Pages ---
+const hideAllPages = () => {
+  hideHomePage();
+  hideEventsPage();
+  hideBookingsPage();
+  hideCartPage();
+  hideAuthPage();
 };
 
 // --- Route Handlers ---
 const renderHome = () => {
-  showPage("/");
-  loadEvents(elements.eventsGrid);
+  hideAllPages();
+  showHomePage();
 };
 
-const renderEvents = () => {
-  showPage("events");
-  renderEventsPage(elements);
+const renderEventsRoute = () => {
+  hideAllPages();
+  showEventsPage();
+  loadEvents();
 };
 
-const renderBookings = () => {
-  showPage("bookings");
-  loadBookings(elements);
+const renderBookingsRoute = () => {
+  hideAllPages();
+  showBookingsPage();
+  loadBookings();
 };
 
-const renderCartPage = () => {
-  showPage("cart");
-  renderCart(elements);
+const renderCartRoute = () => {
+  hideAllPages();
+  showCartPage();
+  renderCart();
 };
 
-const renderAuthPage = () => {
-  showPage("auth");
+const renderAuthRoute = () => {
+  hideAllPages();
+  showAuthPage();
 };
 
 // --- Router Setup ---
 router.register("/", renderHome);
-router.register("/events", renderEvents);
-router.register("/bookings", renderBookings);
-router.register("/cart", renderCartPage);
-router.register("/auth", renderAuthPage);
+router.register("/events", renderEventsRoute);
+router.register("/bookings", renderBookingsRoute);
+router.register("/cart", renderCartRoute);
+router.register("/auth", renderAuthRoute);
 
 // --- Initialize Page Modules ---
-initHomePage(elements);
-initEventsPage(elements);
-initBookingsPage(elements);
-initCartPage(elements);
-initAuthPage(elements);
+initHomePage();
+initEventsPage();
+initBookingsPage();
+initCartPage();
+initAuthPage();
 
 // --- Global Event Listeners ---
 elements.eventsGrid.addEventListener("click", (event) => {
   const button = event.target.closest(".book-btn");
   if (!button) return;
-  addToCart(button.dataset.eventId, elements);
+  addToCart(button.dataset.eventId);
 });
 
 elements.navLogin.addEventListener("click", () => {
   router.navigateTo("auth");
-  showAuthView("login", elements);
+  showAuthView("login");
 });
 
 elements.navLogout.addEventListener("click", () => {
   setAuthState(null, null);
-  syncAuthUI(elements);
-  loadBookings(elements);
-  showAuthView("login", elements);
+  syncAuthUI();
+  loadBookings();
+  showAuthView("login");
   router.navigateTo("/");
 });
 
 // --- Initialize App ---
-syncAuthUI(elements);
-renderCart(elements);
-showAuthView("login", elements);
+syncAuthUI();
+renderCart();
+showAuthView("login");
 
 // Start router after all routes are registered
 router.start();
+

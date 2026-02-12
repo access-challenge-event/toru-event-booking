@@ -2,46 +2,11 @@ import { state, saveCart } from "../state.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
 import { apiFetch } from "../utils/api.js";
 import { router } from "../router.js";
-import { loadBookings } from "./bookings.js";
-import { loadEvents } from "./events.js";
 
-export const renderCartHTML = () => `
-  <section id="cartSection" class="cart-page d-none">
-    <div class="container">
-      <div class="section-header">
-        <div>
-          <h2>Your cart</h2>
-          <p>Confirm attendee details and checkout.</p>
-        </div>
-        <button class="btn btn-outline-dark btn-sm" id="clearCart">Clear cart</button>
-      </div>
-      <div class="cart-shell">
-        <div>
-          <div id="cartList"></div>
-        </div>
-        <div class="cart-summary">
-          <h4>Checkout</h4>
-          <p class="mb-2">Review your booking details below.</p>
-          <div class="cart-total">
-            <span>Total</span>
-            <strong id="cartTotal">£0.00</strong>
-          </div>
-          <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
-          <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
-          <p class="cart-note">You will receive confirmation in your bookings list.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-`;
+export const initCartPage = (elements) => {
+  const { cartList, clearCart, stripePayBtn, checkoutBtn } = elements;
 
-export const initCartPage = () => {
-  const cartList = document.querySelector("#cartList");
-  const clearCart = document.querySelector("#clearCart");
-  const stripePayBtn = document.querySelector("#stripePayBtn");
-  const checkoutBtn = document.querySelector("#checkoutBtn");
-
-  cartList?.addEventListener("change", (event) => {
+  cartList.addEventListener("change", (event) => {
     const cartItem = event.target.closest(".cart-item");
     if (!cartItem) return;
     
@@ -60,10 +25,10 @@ export const initCartPage = () => {
         .slice(0, item.guest_count);
     }
     saveCart();
-    renderCart();
+    renderCart(elements);
   });
 
-  cartList?.addEventListener("click", (event) => {
+  cartList.addEventListener("click", (event) => {
     const cartItem = event.target.closest(".cart-item");
     if (!cartItem) return;
     
@@ -71,35 +36,22 @@ export const initCartPage = () => {
       const eventId = Number(cartItem.dataset.cartId);
       state.cart = state.cart.filter((item) => item.event.id !== eventId);
       saveCart();
-      renderCart();
+      renderCart(elements);
     }
   });
 
-  clearCart?.addEventListener("click", () => {
+  clearCart.addEventListener("click", () => {
     state.cart = [];
     saveCart();
-    renderCart();
+    renderCart(elements);
   });
 
-  stripePayBtn?.addEventListener("click", checkoutCart);
-  checkoutBtn?.addEventListener("click", checkoutCart);
+  stripePayBtn.addEventListener("click", () => checkoutCart(elements));
+  checkoutBtn.addEventListener("click", () => checkoutCart(elements));
 };
 
-export const showCartPage = () => {
-  document.querySelector("#cartSection")?.classList.remove("d-none");
-  renderCart();
-};
-
-export const hideCartPage = () => {
-  document.querySelector("#cartSection")?.classList.add("d-none");
-};
-
-export const renderCart = () => {
-  const cartList = document.querySelector("#cartList");
-  const cartTotal = document.querySelector("#cartTotal");
-  const cartBadge = document.querySelector("#cartBadge");
-  
-  if (!cartList) return;
+export const renderCart = (elements) => {
+  const { cartList, cartTotal, cartBadge } = elements;
   
   if (state.cart.length === 0) {
     cartList.innerHTML = `
@@ -108,8 +60,8 @@ export const renderCart = () => {
         <p class="mb-0">Browse events and add bookings to checkout.</p>
       </div>
     `;
-    if (cartTotal) cartTotal.textContent = "£0.00";
-    if (cartBadge) cartBadge.textContent = "0";
+    cartTotal.textContent = "£0.00";
+    cartBadge.textContent = "0";
     return;
   }
 
@@ -156,11 +108,11 @@ export const renderCart = () => {
     )
     .join("");
   
-  if (cartTotal) cartTotal.textContent = `£${total.toFixed(2)}`;
-  if (cartBadge) cartBadge.textContent = String(state.cart.length);
+  cartTotal.textContent = `£${total.toFixed(2)}`;
+  cartBadge.textContent = String(state.cart.length);
 };
 
-export const addToCart = (eventId) => {
+export const addToCart = (eventId, elements) => {
   const event = state.events.find((item) => item.id === Number(eventId));
   if (!event) return;
   
@@ -179,16 +131,16 @@ export const addToCart = (eventId) => {
   }
   
   saveCart();
-  renderCart();
+  renderCart(elements);
   router.navigateTo("cart");
 };
 
-const checkoutCart = async () => {
-  const loginStatus = document.querySelector("#loginStatus");
+const checkoutCart = async (elements) => {
+  const { loginStatus } = elements;
   
   if (!state.token) {
     router.navigateTo("auth");
-    if (loginStatus) loginStatus.textContent = "Please sign in to complete checkout.";
+    loginStatus.textContent = "Please sign in to complete checkout.";
     return;
   }
   
@@ -207,11 +159,9 @@ const checkoutCart = async () => {
     }
     state.cart = [];
     saveCart();
-    renderCart();
-    loadBookings();
-    loadEvents();
+    renderCart(elements);
     router.navigateTo("bookings");
   } catch (error) {
-    if (loginStatus) loginStatus.textContent = error.message;
+    loginStatus.textContent = error.message;
   }
 };

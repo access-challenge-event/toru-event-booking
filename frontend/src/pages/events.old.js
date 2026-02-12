@@ -6,73 +6,39 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 let currentFilter = "all";
 let currentSearch = "";
 
-export const renderEventsHTML = () => `
-  <section id="eventsSection" class="container section-gap d-none">
-    <div class="section-header">
-      <h2>Upcoming events</h2>
-    </div>
-    <div class="mb-4">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-6">
-          <input type="text" class="form-control" id="searchInput" placeholder="Search events by name...">
-        </div>
-        <div class="col-md-6">
-          <div class="btn-group w-100" role="group">
-            <button type="button" class="btn btn-outline-dark filter-btn active" data-filter="all">All</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="tours">Tours</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="talks">Talks</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="family">Family</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div id="eventsGrid" class="row g-4"></div>
-  </section>
-`;
+export const initEventsPage = (elements) => {
+  const { eventsGrid, searchInput } = elements;
 
-export const initEventsPage = () => {
-  const searchInput = document.querySelector("#searchInput");
-  
   // Filter buttons
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       currentFilter = btn.dataset.filter;
-      renderEvents(state.events);
+      renderEvents(state.events, eventsGrid);
     });
   });
 
   // Search input
-  searchInput?.addEventListener("input", (e) => {
-    currentSearch = e.target.value;
-    renderEvents(state.events);
-  });
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      currentSearch = e.target.value;
+      renderEvents(state.events, eventsGrid);
+    });
+  }
 };
 
-export const showEventsPage = () => {
-  const eventsSection = document.querySelector("#eventsSection");
-  const searchInput = document.querySelector("#searchInput");
-  
-  eventsSection?.classList.remove("d-none");
-  
+export const renderEventsPage = (elements) => {
+  const { searchInput } = elements;
   currentFilter = "all";
   currentSearch = "";
   document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
-  document.querySelector('[data-filter="all"]')?.classList.add("active");
+  document.querySelector('[data-filter="all"]').classList.add("active");
   if (searchInput) searchInput.value = "";
-  
-  loadEvents();
+  loadEvents(elements.eventsGrid);
 };
 
-export const hideEventsPage = () => {
-  document.querySelector("#eventsSection")?.classList.add("d-none");
-};
-
-const renderEvents = (events) => {
-  const eventsGrid = document.querySelector("#eventsGrid");
-  if (!eventsGrid) return;
-  
+export const renderEvents = (events, eventsGrid) => {
   state.events = events;
   
   let filtered = events;
@@ -142,10 +108,7 @@ const renderEvents = (events) => {
   }
 };
 
-const showEventsLoading = () => {
-  const eventsGrid = document.querySelector("#eventsGrid");
-  if (!eventsGrid) return;
-  
+const showEventsLoading = (eventsGrid) => {
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">
@@ -159,10 +122,7 @@ const showEventsLoading = () => {
   `;
 };
 
-const showEventsError = () => {
-  const eventsGrid = document.querySelector("#eventsGrid");
-  if (!eventsGrid) return;
-  
+const showEventsError = (eventsGrid) => {
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">
@@ -175,16 +135,16 @@ const showEventsError = () => {
   `;
 };
 
-export const loadEvents = async () => {
-  showEventsLoading();
+export const loadEvents = async (eventsGrid) => {
+  showEventsLoading(eventsGrid);
   try {
     const response = await fetch(`${apiBaseUrl}/api/events`);
     if (!response.ok) {
       throw new Error("Failed to fetch events");
     }
     const data = await response.json();
-    renderEvents(data);
+    renderEvents(data, eventsGrid);
   } catch (error) {
-    showEventsError();
+    showEventsError(eventsGrid);
   }
 };

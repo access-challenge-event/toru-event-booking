@@ -1,23 +1,82 @@
 import { state, setAuthState } from "../state.js";
 import { apiFetch } from "../utils/api.js";
 import { router } from "../router.js";
+import { loadBookings, updateAuthGreeting } from "./bookings.js";
+import { loadEvents } from "./events.js";
 
-export const initAuthPage = (elements) => {
-  const { loginForm, registerForm } = elements;
+export const renderAuthHTML = () => `
+  <section id="authSection" class="auth-page d-none">
+    <div class="container">
+      <div class="auth-shell">
+        <div class="auth-card" id="loginCard">
+          <h3>Sign in</h3>
+          <p>Welcome back. Use your details to access your bookings.</p>
+          <form class="vstack gap-3" id="loginForm">
+            <input class="form-control" type="email" placeholder="Email address" id="loginEmail" required />
+            <input class="form-control" type="password" placeholder="Password" id="loginPassword" required />
+            <button class="btn btn-dark" type="submit">Sign in</button>
+            <p class="auth-status" id="loginStatus"></p>
+            <p class="auth-footnote">
+              New here?
+              <button class="link-button" type="button" data-auth-switch="register">Create an account</button>
+            </p>
+          </form>
+        </div>
+        <div class="auth-card light d-none" id="registerCard">
+          <h3>Create account</h3>
+          <p>Register once to manage bookings and save your details.</p>
+          <form class="vstack gap-3" id="registerForm">
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <input class="form-control" type="text" placeholder="First name" id="registerFirstName" required />
+              </div>
+              <div class="col-12 col-md-6">
+                <input class="form-control" type="text" placeholder="Last name" id="registerLastName" required />
+              </div>
+            </div>
+            <input class="form-control" type="email" placeholder="Email address" id="registerEmail" required />
+            <input class="form-control" type="password" placeholder="Password" id="registerPassword" required />
+            <button class="btn btn-dark" type="submit">Create account</button>
+            <p class="auth-status" id="registerStatus"></p>
+            <p class="auth-footnote">
+              Already have an account?
+              <button class="link-button" type="button" data-auth-switch="login">Sign in</button>
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+`;
 
-  loginForm.addEventListener("submit", (e) => handleLogin(e, elements));
-  registerForm.addEventListener("submit", (e) => handleRegister(e, elements));
+export const initAuthPage = () => {
+  const loginForm = document.querySelector("#loginForm");
+  const registerForm = document.querySelector("#registerForm");
+
+  loginForm?.addEventListener("submit", handleLogin);
+  registerForm?.addEventListener("submit", handleRegister);
 
   document.querySelectorAll("[data-auth-switch]").forEach((button) => {
     button.addEventListener("click", () => {
       const target = button.dataset.authSwitch;
-      showAuthView(target, elements);
+      showAuthView(target);
     });
   });
 };
 
-export const showAuthView = (view, elements) => {
-  const { registerCard, loginCard } = elements;
+export const showAuthPage = () => {
+  document.querySelector("#authSection")?.classList.remove("d-none");
+};
+
+export const hideAuthPage = () => {
+  document.querySelector("#authSection")?.classList.add("d-none");
+};
+
+export const showAuthView = (view) => {
+  const registerCard = document.querySelector("#registerCard");
+  const loginCard = document.querySelector("#loginCard");
+  
+  if (!registerCard || !loginCard) return;
   
   if (view === "register") {
     registerCard.classList.remove("d-none");
@@ -28,26 +87,21 @@ export const showAuthView = (view, elements) => {
   }
 };
 
-export const syncAuthUI = (elements) => {
-  const { navLogout, navLogin, authGreeting } = elements;
+export const syncAuthUI = () => {
+  const navLogout = document.querySelector("#navLogout");
+  const navLogin = document.querySelector("#navLogin");
   const isAuthed = Boolean(state.token);
   
-  navLogout.classList.toggle("d-none", !isAuthed);
-  navLogin.classList.toggle("d-none", isAuthed);
+  navLogout?.classList.toggle("d-none", !isAuthed);
+  navLogin?.classList.toggle("d-none", isAuthed);
   
-  if (isAuthed && state.user) {
-    const firstName = state.user.first_name || "";
-    const lastName = state.user.last_name || "";
-    authGreeting.textContent = `Welcome back, ${firstName} ${lastName}`.trim() + ".";
-  } else {
-    authGreeting.textContent = "Sign in to manage your reservations.";
-  }
+  updateAuthGreeting();
 };
 
-const handleLogin = async (event, elements) => {
+const handleLogin = async (event) => {
   event.preventDefault();
-  const { loginStatus, eventsGrid } = elements;
-  loginStatus.textContent = "";
+  const loginStatus = document.querySelector("#loginStatus");
+  if (loginStatus) loginStatus.textContent = "";
   
   try {
     const payload = {
@@ -59,29 +113,31 @@ const handleLogin = async (event, elements) => {
       body: JSON.stringify(payload),
     });
     setAuthState(data.token, data.user);
-    syncAuthUI(elements);
+    syncAuthUI();
+    loadEvents();
     
-    // Reload events to refresh availability
-    const { loadEvents } = await import("./events.js");
-    loadEvents(eventsGrid);
-    
-    loginStatus.textContent = "Signed in successfully.";
-    loginStatus.classList.add("success");
-    showAuthView("login", elements);
+    if (loginStatus) {
+      loginStatus.textContent = "Signed in successfully.";
+      loginStatus.classList.add("success");
+    }
+    showAuthView("login");
     router.navigateTo("bookings");
-    
-    const { loadBookings } = await import("./bookings.js");
-    loadBookings(elements);
+    loadBookings();
   } catch (error) {
-    loginStatus.textContent = error.message;
-    loginStatus.classList.remove("success");
+    if (loginStatus) {
+      loginStatus.textContent = error.message;
+      loginStatus.classList.remove("success");
+    }
   }
 };
 
-const handleRegister = async (event, elements) => {
+const handleRegister = async (event) => {
   event.preventDefault();
-  const { registerStatus, registerCard, loginCard, eventsGrid } = elements;
-  registerStatus.textContent = "";
+  const registerStatus = document.querySelector("#registerStatus");
+  const registerCard = document.querySelector("#registerCard");
+  const loginCard = document.querySelector("#loginCard");
+  
+  if (registerStatus) registerStatus.textContent = "";
   
   try {
     const payload = {
@@ -95,22 +151,21 @@ const handleRegister = async (event, elements) => {
       body: JSON.stringify(payload),
     });
     setAuthState(data.token, data.user);
-    syncAuthUI(elements);
+    syncAuthUI();
+    loadEvents();
     
-    // Reload events to refresh availability
-    const { loadEvents } = await import("./events.js");
-    loadEvents(eventsGrid);
-    
-    registerStatus.textContent = "Account created. You are signed in.";
-    registerStatus.classList.add("success");
-    registerCard.classList.add("d-none");
-    loginCard.classList.remove("d-none");
+    if (registerStatus) {
+      registerStatus.textContent = "Account created. You are signed in.";
+      registerStatus.classList.add("success");
+    }
+    registerCard?.classList.add("d-none");
+    loginCard?.classList.remove("d-none");
     router.navigateTo("bookings");
-    
-    const { loadBookings } = await import("./bookings.js");
-    loadBookings(elements);
+    loadBookings();
   } catch (error) {
-    registerStatus.textContent = error.message;
-    registerStatus.classList.remove("success");
+    if (registerStatus) {
+      registerStatus.textContent = error.message;
+      registerStatus.classList.remove("success");
+    }
   }
 };
