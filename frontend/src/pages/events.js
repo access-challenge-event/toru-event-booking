@@ -89,12 +89,7 @@ const renderEvents = (events) => {
   
   // Apply category filter
   if (currentFilter !== "all") {
-    filtered = filtered.filter(event => {
-      const category = event.title.toLowerCase().includes("tour") ? "tours" :
-                      event.title.toLowerCase().includes("talk") ? "talks" :
-                      event.title.toLowerCase().includes("family") ? "family" : "";
-      return category === currentFilter;
-    });
+    filtered = filtered.filter(event => ((event.category || "").toLowerCase() === currentFilter));
   }
   
   eventsGrid.innerHTML = filtered
