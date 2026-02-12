@@ -6,6 +6,8 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 let currentFilter = "all";
 let currentSearch = "";
 
+const titleCase = (s) => s.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+
 export const renderEventsHTML = () => `
   <section id="eventsSection" class="container section-gap d-none">
     <div class="section-header">
@@ -17,11 +19,8 @@ export const renderEventsHTML = () => `
           <input type="text" class="form-control" id="searchInput" placeholder="Search events by name...">
         </div>
         <div class="col-md-6">
-          <div class="btn-group w-100" role="group">
-            <button type="button" class="btn btn-outline-dark filter-btn active" data-filter="all">All</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="tours">Tours</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="talks">Talks</button>
-            <button type="button" class="btn btn-outline-dark filter-btn" data-filter="family">Family</button>
+          <div id="categoryFilters" class="btn-group w-100" role="group">
+            <!-- category buttons populated dynamically -->
           </div>
         </div>
       </div>
@@ -74,6 +73,34 @@ const renderEvents = (events) => {
   if (!eventsGrid) return;
   
   state.events = events;
+
+  // Populate category filter buttons from events' categories
+  const filtersContainer = document.querySelector("#categoryFilters");
+  if (filtersContainer) {
+    const cats = Array.from(
+      new Set(
+        events
+          .map((e) => (e.category && e.category.name ? e.category.name.toLowerCase() : null))
+          .filter(Boolean)
+      )
+    );
+    const buttons = ["all", ...cats];
+    filtersContainer.innerHTML = buttons
+      .map(
+        (f) => `<button type="button" class="btn btn-outline-dark filter-btn ${f===currentFilter? 'active' : ''}" data-filter="${f}">${f==='all' ? 'All' : titleCase(f)}</button>`
+      )
+      .join("");
+
+    // Attach listeners to the newly created buttons
+    filtersContainer.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentFilter = btn.dataset.filter;
+        renderEvents(state.events);
+      });
+    });
+  }
   
   let filtered = events;
   
@@ -89,7 +116,7 @@ const renderEvents = (events) => {
   
   // Apply category filter
   if (currentFilter !== "all") {
-    filtered = filtered.filter(event => ((event.category || "").toLowerCase() === currentFilter));
+    filtered = filtered.filter(event => ((event.category && event.category.name ? event.category.name : "").toLowerCase() === currentFilter));
   }
   
   eventsGrid.innerHTML = filtered

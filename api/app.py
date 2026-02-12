@@ -59,7 +59,8 @@ class Event(db.Model):
     is_free = db.Column(db.Boolean, nullable=False, default=True)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
-    category = db.Column(db.String(50), nullable=True)
+    category_id = db.Column(db.BigInteger, db.ForeignKey("categories.id"), nullable=True)
+    category = db.relationship("Category", backref="events", lazy="joined")
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -82,6 +83,19 @@ class Booking(db.Model):
 
     user = db.relationship("User", backref="bookings")
     event = db.relationship("Event", backref="bookings")
+
+
+class Category(db.Model):
+    __tablename__ = "categories"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
 
 
 def ensure_booking_columns():
@@ -147,6 +161,22 @@ def ensure_user_columns():
 
 def ensure_event_columns():
     with db.engine.begin() as conn:
+        # ensure categories table exists
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS categories (
+                  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                  name VARCHAR(50) NOT NULL,
+                  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  PRIMARY KEY (id),
+                  UNIQUE KEY uk_categories_name (name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+        )
+
         result = conn.execute(
             text(
                 """
@@ -158,12 +188,18 @@ def ensure_event_columns():
             {"schema_name": db_name},
         )
         columns = {row[0] for row in result}
-        if "category" not in columns:
+        if "category_id" not in columns:
             conn.execute(
                 text(
-                    "ALTER TABLE events ADD COLUMN category VARCHAR(50) NULL"
+                    "ALTER TABLE events ADD COLUMN category_id BIGINT UNSIGNED NULL"
                 )
             )
+            # add index and foreign key if needed
+            try:
+                conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL"))
+            except Exception:
+                # ignore if constraint already exists or DB doesn't support it here
+                pass
 
 
 with app.app_context():
@@ -228,8 +264,9 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "is_free": bool(event.is_free),
         "price": float(event.price) if event.price else 0.00,
         "capacity": event.capacity,
-            "spots_left": spots_left,
-            "category": event.category if hasattr(event, "category") else None,
+        "spots_left": spots_left,
+        "category_id": int(event.category_id) if getattr(event, "category_id", None) is not None else None,
+        "category": {"id": int(event.category.id), "name": event.category.name} if getattr(event, "category", None) else None,
     }
 
 
