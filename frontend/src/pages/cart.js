@@ -287,8 +287,17 @@ const checkoutAsGuest = async () => {
     if (cartStatus) cartStatus.textContent = "Email address is required.";
     return;
   }
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(email)) {
+    if (cartStatus) cartStatus.textContent = "Please enter a valid email address.";
+    return;
+  }
   if (!name) {
     if (cartStatus) cartStatus.textContent = "Full name is required.";
+    return;
+  }
+  if (phone && !/^[\d\s\-\+\(\)]{7,20}$/.test(phone)) {
+    if (cartStatus) cartStatus.textContent = "Please enter a valid phone number.";
     return;
   }
   if (state.cart.length === 0) return;

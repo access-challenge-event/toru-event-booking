@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 from functools import wraps
 import json
+import re
 
 import jwt
 from flask import Flask, jsonify, request, send_from_directory
@@ -495,8 +496,12 @@ def create_guest_booking():
         return json_error("Event id is required")
     if not email:
         return json_error("Email is required")
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        return json_error("Please enter a valid email address")
     if not name:
         return json_error("Name is required")
+    if phone and not re.match(r'^[\d\s\-\+\(\)]{7,20}$', phone):
+        return json_error("Please enter a valid phone number")
 
     guest_count = payload.get("guest_count", 1)
     try:
