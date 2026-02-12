@@ -150,15 +150,18 @@ initAuthPage();
 elements.eventsGrid.addEventListener("click", (event) => {
   const button = event.target.closest(".book-btn");
   if (!button) return;
-  addToCart(button.dataset.eventId);
+  console.log("📚 Book button clicked for event:", button.dataset.eventId);
+  addToCart(button.dataset.eventId, elements);
 });
 
 elements.navLogin.addEventListener("click", () => {
+  console.log("🔐 Nav login clicked, navigating to auth");
   router.navigateTo("auth");
   showAuthView("login");
 });
 
 elements.navLogout.addEventListener("click", () => {
+  console.log("🚪 Nav logout clicked");
   setAuthState(null, null);
   syncAuthUI();
   loadBookings();
@@ -167,10 +170,23 @@ elements.navLogout.addEventListener("click", () => {
 });
 
 // --- Initialize App ---
-syncAuthUI();
-renderCart();
-showAuthView("login");
+console.log("🚀 Delapre Events App Initializing");
+console.log("📍 API Base URL:", import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
+
+syncAuthUI(elements);
+renderCart(elements);
+showAuthView("login", elements);
+
+// Debug: Verify event listeners are attached
+console.log("✅ Elements loaded:", {
+  navLogin: elements.navLogin ? "✓" : "✗",
+  loginForm: elements.loginForm ? "✓" : "✗",
+  registerForm: elements.registerForm ? "✓" : "✗",
+  eventsGrid: elements.eventsGrid ? "✓" : "✗",
+  authSection: elements.authSection ? "✓" : "✗",
+});
 
 // Start router after all routes are registered
 router.start();
 
+console.log("✓ App initialized and router started");

@@ -100,18 +100,21 @@ export const syncAuthUI = () => {
 
 const handleLogin = async (event) => {
   event.preventDefault();
-  const loginStatus = document.querySelector("#loginStatus");
-  if (loginStatus) loginStatus.textContent = "";
+  console.log("🔐 Login form submitted");
+  const { loginStatus, eventsGrid } = elements;
+  loginStatus.textContent = "";
   
   try {
     const payload = {
       email: document.querySelector("#loginEmail").value.trim(),
       password: document.querySelector("#loginPassword").value,
     };
+    console.log("📝 Login payload:", { email: payload.email });
     const data = await apiFetch("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    console.log("✓ Login successful");
     setAuthState(data.token, data.user);
     syncAuthUI();
     loadEvents();
@@ -124,10 +127,9 @@ const handleLogin = async (event) => {
     router.navigateTo("bookings");
     loadBookings();
   } catch (error) {
-    if (loginStatus) {
-      loginStatus.textContent = error.message;
-      loginStatus.classList.remove("success");
-    }
+    console.error("❌ Login error:", error);
+    loginStatus.textContent = error.message;
+    loginStatus.classList.remove("success");
   }
 };
 
