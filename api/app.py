@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 from functools import wraps
 import json
+import re
 
 import jwt
 from flask import Flask, jsonify, request, send_from_directory
@@ -76,11 +77,14 @@ class Booking(db.Model):
     __tablename__ = "bookings"
 
     id = db.Column(db.BigInteger, primary_key=True)
-    user_id = db.Column(db.BigInteger, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.BigInteger, db.ForeignKey("users.id"), nullable=True)
     event_id = db.Column(db.BigInteger, db.ForeignKey("events.id"), nullable=False)
     status = db.Column(db.String(20), nullable=False, default="confirmed")
     guest_count = db.Column(db.Integer, nullable=False, default=1)
     guest_names = db.Column(db.Text, nullable=True)
+    guest_email = db.Column(db.String(255), nullable=True)
+    guest_name = db.Column(db.String(255), nullable=True)
+    guest_phone = db.Column(db.String(50), nullable=True)
     booked_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     cancelled_at = db.Column(db.DateTime, nullable=True)
 
@@ -122,6 +126,17 @@ def ensure_booking_columns():
             )
         if "guest_names" not in columns:
             conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_names TEXT NULL"))
+        if "guest_email" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_email VARCHAR(255) NULL"))
+        if "guest_name" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_name VARCHAR(255) NULL"))
+        if "guest_phone" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_phone VARCHAR(50) NULL"))
+        # Make user_id nullable if it isn't already
+        try:
+            conn.execute(text("ALTER TABLE bookings MODIFY COLUMN user_id BIGINT UNSIGNED NULL"))
+        except Exception:
+            pass
 
 
 def ensure_user_columns():
@@ -285,6 +300,9 @@ def booking_to_dict(booking: Booking):
         "status": booking.status,
         "guest_count": booking.guest_count,
         "guest_names": guest_names,
+        "guest_email": booking.guest_email,
+        "guest_name": booking.guest_name,
+        "guest_phone": booking.guest_phone,
         "booked_at": booking.booked_at.isoformat() if booking.booked_at else None,
         "cancelled_at": booking.cancelled_at.isoformat() if booking.cancelled_at else None,
         "event": event_to_dict(booking.event),
@@ -460,6 +478,83 @@ def create_booking(current_user: User):
         status="confirmed",
         guest_count=guest_count,
         guest_names=json.dumps(guest_names) if guest_names else None,
+    )
+    db.session.add(booking)
+    db.session.commit()
+    return jsonify(booking_to_dict(booking)), 201
+
+
+@app.post("/api/bookings/guest")
+def create_guest_booking():
+    payload = request.get_json(silent=True) or {}
+    event_id = payload.get("event_id")
+    email = (payload.get("email") or "").strip().lower()
+    name = (payload.get("name") or "").strip()
+    phone = (payload.get("phone") or "").strip()
+
+    if not event_id:
+        return json_error("Event id is required")
+    if not email:
+        return json_error("Email is required")
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        return json_error("Please enter a valid email address")
+    if not name:
+        return json_error("Name is required")
+    if phone and not re.match(r'^[\d\s\-\+\(\)]{7,20}$', phone):
+        return json_error("Please enter a valid phone number")
+
+    guest_count = payload.get("guest_count", 1)
+    try:
+        guest_count = int(guest_count)
+    except (TypeError, ValueError):
+        return json_error("Guest count must be a number")
+
+    if guest_count < 1:
+        return json_error("Guest count must be at least 1")
+    if guest_count > MAX_GUESTS_PER_BOOKING:
+        return json_error(f"Guest count must be {MAX_GUESTS_PER_BOOKING} or fewer")
+
+    guest_names_raw = payload.get("guest_names") or []
+    if isinstance(guest_names_raw, str):
+        guest_names = [
+            n.strip() for n in guest_names_raw.split(",") if n.strip()
+        ]
+    elif isinstance(guest_names_raw, list):
+        guest_names = [str(n).strip() for n in guest_names_raw if str(n).strip()]
+    else:
+        guest_names = []
+    if guest_names and len(guest_names) > guest_count:
+        guest_names = guest_names[:guest_count]
+
+    event = db.session.get(Event, int(event_id))
+    if not event:
+        return json_error("Event not found", 404)
+
+    # Check for duplicate guest booking by email + event
+    existing = Booking.query.filter_by(
+        guest_email=email, event_id=event.id, status="confirmed"
+    ).first()
+    if existing:
+        return json_error("A booking with this email already exists for this event", 409)
+
+    confirmed = (
+        db.session.query(func.coalesce(func.sum(Booking.guest_count), 0))
+        .filter_by(event_id=event.id, status="confirmed")
+        .scalar()
+    )
+    available = event.capacity - int(confirmed or 0)
+    if event.capacity > 0 and guest_count > available:
+        return json_error("Not enough spaces available", 409)
+
+    booking = Booking(
+        user_id=None,
+        event_id=event.id,
+        status="confirmed",
+        guest_count=guest_count,
+        guest_names=json.dumps(guest_names) if guest_names else None,
+        guest_email=email,
+        guest_name=name,
+        guest_phone=phone or None,
     )
     db.session.add(booking)
     db.session.commit()

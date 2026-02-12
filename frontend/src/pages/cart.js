@@ -1,4 +1,4 @@
-import { state, saveCart } from "../state.js";
+import { state, saveCart, saveGuestInfo } from "../state.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
 import { apiFetch } from "../utils/api.js";
 import { router } from "../router.js";
@@ -26,9 +26,13 @@ export const renderCartHTML = () => `
             <span>Total</span>
             <strong id="cartTotal">£0.00</strong>
           </div>
-          <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
-          <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
-          <p class="cart-note">You will receive confirmation in your bookings list.</p>
+          <div id="guestFormContainer"></div>
+          <div id="authCheckoutControls">
+            <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
+            <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
+          </div>
+          <p class="cart-note" id="cartNote">You will receive confirmation in your bookings list.</p>
+          <p class="auth-status" id="cartStatus"></p>
         </div>
       </div>
     </div>
@@ -44,11 +48,11 @@ export const initCartPage = () => {
   cartList?.addEventListener("change", (event) => {
     const cartItem = event.target.closest(".cart-item");
     if (!cartItem) return;
-    
+
     const eventId = Number(cartItem.dataset.cartId);
     const item = state.cart.find((cart) => cart.event.id === eventId);
     if (!item) return;
-    
+
     if (event.target.hasAttribute("data-cart-guests")) {
       item.guest_count = Number(event.target.value);
     }
@@ -66,7 +70,7 @@ export const initCartPage = () => {
   cartList?.addEventListener("click", (event) => {
     const cartItem = event.target.closest(".cart-item");
     if (!cartItem) return;
-    
+
     if (event.target.hasAttribute("data-cart-remove")) {
       const eventId = Number(cartItem.dataset.cartId);
       state.cart = state.cart.filter((item) => item.event.id !== eventId);
@@ -83,6 +87,14 @@ export const initCartPage = () => {
 
   stripePayBtn?.addEventListener("click", checkoutCart);
   checkoutBtn?.addEventListener("click", checkoutCart);
+
+  // Guest checkout form submission (delegated since it's rendered dynamically)
+  document.addEventListener("click", (event) => {
+    if (event.target.id === "guestCheckoutBtn") {
+      event.preventDefault();
+      checkoutAsGuest();
+    }
+  });
 };
 
 export const showCartPage = () => {
@@ -98,9 +110,9 @@ export const renderCart = () => {
   const cartList = document.querySelector("#cartList");
   const cartTotal = document.querySelector("#cartTotal");
   const cartBadge = document.querySelector("#cartBadge");
-  
+
   if (!cartList) return;
-  
+
   if (state.cart.length === 0) {
     cartList.innerHTML = `
       <div class="booking-empty">
@@ -133,27 +145,26 @@ export const renderCart = () => {
           <div>
             <h5>${item.event.title}</h5>
             <p>${formatDate(item.event.starts_at, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })} · ${formatTime(item.event.starts_at)} · ${item.event.location}</p>
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        })} · ${formatTime(item.event.starts_at)} · ${item.event.location}</p>
             <p class="text-muted mb-0">${item.event.is_free ? "Free" : `£${item.event.price.toFixed(2)} per guest`} · Spaces left: ${item.event.spots_left ?? item.event.capacity}</p>
           </div>
           <div class="cart-controls">
             <label class="form-label">Guests</label>
             ${(() => {
-              const max = Math.min(available, 4);
-              if (max <= 0) {
-                return `<select class="form-select" data-cart-guests disabled><option>0</option></select><div class="text-danger mt-2">Sold out</div>`;
-              }
-              return `<select class="form-select" data-cart-guests>${Array.from({ length: max }, (_, i) => i + 1)
-                .map((count) => `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`)
-                .join("")}</select>`;
-            })()}
+            const max = Math.min(available, 4);
+            if (max <= 0) {
+              return `<select class="form-select" data-cart-guests disabled><option>0</option></select><div class="text-danger mt-2">Sold out</div>`;
+            }
+            return `<select class="form-select" data-cart-guests>${Array.from({ length: max }, (_, i) => i + 1)
+              .map((count) => `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`)
+              .join("")}</select>`;
+          })()}
             <label class="form-label">Guest names (optional)</label>
-            <textarea class="form-control" rows="2" data-cart-names placeholder="Alex, Priya, Sam">${
-              item.guest_names.join(", ")
-            }</textarea>
+            <textarea class="form-control" rows="2" data-cart-names placeholder="Alex, Priya, Sam">${item.guest_names.join(", ")
+          }</textarea>
             ${itemPrice > 0 ? `<p class="text-end mb-2"><strong>£${itemPrice.toFixed(2)}</strong></p>` : ""}
             <button class="btn btn-outline-dark btn-sm" data-cart-remove>Remove</button>
           </div>
@@ -162,9 +173,40 @@ export const renderCart = () => {
       }
     )
     .join("");
-  
+
   if (cartTotal) cartTotal.textContent = `£${total.toFixed(2)}`;
   if (cartBadge) cartBadge.textContent = String(state.cart.length);
+
+  // Toggle guest form vs authenticated checkout controls
+  const guestFormContainer = document.querySelector("#guestFormContainer");
+  const authCheckoutControls = document.querySelector("#authCheckoutControls");
+  const cartNote = document.querySelector("#cartNote");
+
+  if (!state.token) {
+    // Show guest info form
+    if (authCheckoutControls) authCheckoutControls.style.display = "none";
+    if (cartNote) cartNote.textContent = "You'll receive a confirmation email after booking.";
+    if (guestFormContainer && state.cart.length > 0) {
+      const gi = state.guestInfo || {};
+      guestFormContainer.innerHTML = `
+        <div class="guest-form">
+          <p class="guest-form-title">Book as guest</p>
+          <input class="form-control mb-2" type="email" id="guestEmail" placeholder="Email address *" value="${gi.email || ''}" required />
+          <input class="form-control mb-2" type="text" id="guestName" placeholder="Full name *" value="${gi.name || ''}" required />
+          <input class="form-control mb-2" type="tel" id="guestPhone" placeholder="Phone number (optional)" value="${gi.phone || ''}" />
+          <button class="btn btn-light w-100 mb-2" id="guestCheckoutBtn">Book as guest</button>
+          <p class="auth-footnote">Have an account? <a href="#/auth">Sign in</a> for full access.</p>
+        </div>
+      `;
+    } else if (guestFormContainer) {
+      guestFormContainer.innerHTML = "";
+    }
+  } else {
+    // Show normal checkout
+    if (authCheckoutControls) authCheckoutControls.style.display = "";
+    if (cartNote) cartNote.textContent = "You will receive confirmation in your bookings list.";
+    if (guestFormContainer) guestFormContainer.innerHTML = "";
+  }
 };
 
 export const addToCart = (eventId) => {
@@ -177,7 +219,7 @@ export const addToCart = (eventId) => {
   }
   const maxGuests = available;
   const existing = state.cart.find((item) => item.event.id === event.id);
-  
+
   if (existing) {
     existing.guest_count = Math.min(existing.guest_count + 1, maxGuests);
   } else {
@@ -188,25 +230,25 @@ export const addToCart = (eventId) => {
       maxGuests: Math.max(1, maxGuests),
     });
   }
-  
+
   saveCart();
   renderCart();
   router.navigateTo("cart");
 };
 
 const checkoutCart = async () => {
-  const loginStatus = document.querySelector("#loginStatus");
-  
+  const cartStatus = document.querySelector("#cartStatus");
+
   if (!state.token) {
-    router.navigateTo("auth");
-    if (loginStatus) loginStatus.textContent = "Please sign in to complete checkout.";
+    // Not signed in — the guest form handles this
+    if (cartStatus) cartStatus.textContent = "Please fill in the guest form or sign in to checkout.";
     return;
   }
-  
+
   if (state.cart.length === 0) return;
-  
+  if (cartStatus) cartStatus.textContent = "";
+
   try {
-    // validate availability before attempting bookings
     for (const item of state.cart) {
       const available = item.event.spots_left ?? item.event.capacity ?? 0;
       if (available <= 0) throw new Error(`${item.event.title} is sold out`);
@@ -229,6 +271,71 @@ const checkoutCart = async () => {
     loadEvents();
     router.navigateTo("bookings");
   } catch (error) {
-    if (loginStatus) loginStatus.textContent = error.message;
+    if (cartStatus) cartStatus.textContent = error.message;
+  }
+};
+
+const checkoutAsGuest = async () => {
+  const cartStatus = document.querySelector("#cartStatus");
+  const email = document.querySelector("#guestEmail")?.value.trim() || "";
+  const name = document.querySelector("#guestName")?.value.trim() || "";
+  const phone = document.querySelector("#guestPhone")?.value.trim() || "";
+
+  if (cartStatus) cartStatus.textContent = "";
+
+  if (!email) {
+    if (cartStatus) cartStatus.textContent = "Email address is required.";
+    return;
+  }
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(email)) {
+    if (cartStatus) cartStatus.textContent = "Please enter a valid email address.";
+    return;
+  }
+  if (!name) {
+    if (cartStatus) cartStatus.textContent = "Full name is required.";
+    return;
+  }
+  if (phone && !/^[\d\s\-\+\(\)]{7,20}$/.test(phone)) {
+    if (cartStatus) cartStatus.textContent = "Please enter a valid phone number.";
+    return;
+  }
+  if (state.cart.length === 0) return;
+
+  // Save guest info for the session
+  saveGuestInfo({ email, name, phone });
+
+  try {
+    for (const item of state.cart) {
+      const available = item.event.spots_left ?? item.event.capacity ?? 0;
+      if (available <= 0) throw new Error(`${item.event.title} is sold out`);
+      if (item.guest_count > available) throw new Error(`Not enough spaces available for ${item.event.title}`);
+    }
+    for (const item of state.cart) {
+      await apiFetch("/api/bookings/guest", {
+        method: "POST",
+        body: JSON.stringify({
+          event_id: item.event.id,
+          guest_count: item.guest_count,
+          guest_names: item.guest_names,
+          email,
+          name,
+          phone,
+        }),
+      });
+    }
+    state.cart = [];
+    saveCart();
+    renderCart();
+    loadEvents();
+    if (cartStatus) {
+      cartStatus.textContent = `Booking confirmed! A confirmation will be sent to ${email}.`;
+      cartStatus.classList.add("success");
+    }
+  } catch (error) {
+    if (cartStatus) {
+      cartStatus.textContent = error.message;
+      cartStatus.classList.remove("success");
+    }
   }
 };

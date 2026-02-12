@@ -210,3 +210,5 @@ __marimo__/
 vendor/
 composer.lock
 tmpclaude*
+
+node_modules/
