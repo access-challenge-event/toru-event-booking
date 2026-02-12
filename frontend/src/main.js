@@ -1,39 +1,38 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "./style.css";
+import { router } from "./router.js";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 const app = document.querySelector("#app");
 
 app.innerHTML = `
-  <main class="page">
-    <header class="hero page-view" data-page="home">
-      <nav class="navbar navbar-expand-lg navbar-light py-3">
-        <div class="container">
-          <a class="navbar-brand" href="#">
-            <span class="brand-mark">DA</span>
-            <span class="brand-text">Delapre Abbey Events</span>
-          </a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="navMenu">
-            <ul class="navbar-nav ms-auto gap-lg-3">
-              <li class="nav-item"><a class="nav-link" href="#" data-page-link="home" data-scroll-target="#events">Events</a></li>
-              <li class="nav-item"><a class="nav-link" href="#" data-page-link="home" data-scroll-target="#how">How it works</a></li>
-              <li class="nav-item"><a class="nav-link" href="#" data-page-link="bookings">Bookings</a></li>
-              <li class="nav-item"><a class="nav-link" href="#" data-page-link="cart">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
-            </ul>
-            <div class="d-flex gap-2 ms-lg-3">
-              <button class="btn btn-outline-dark btn-sm" id="navRegister">Register</button>
-              <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
-              <button class="btn btn-outline-dark btn-sm d-none" id="navLogout">Sign out</button>
-            </div>
-          </div>
+  <nav class="navbar navbar-expand-lg navbar-light py-3">
+    <div class="container">
+      <a class="navbar-brand" href="${router.href('')}">
+        <span class="brand-mark">DA</span>
+        <span class="brand-text">Delapre Abbey Events</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav ms-auto gap-lg-3">
+          <li class="nav-item"><a class="nav-link" href="${router.href('')}">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="${router.href('bookings')}">Bookings</a></li>
+          <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
+        </ul>
+        <div class="d-flex gap-2 ms-lg-3">
+          <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
+          <button class="btn btn-outline-dark btn-sm d-none" id="navLogout">Sign out</button>
         </div>
-      </nav>
+      </div>
+    </div>
+  </nav>
 
+  <main class="page">
+    <header class="hero" id="homeSection">
       <div class="container hero-body">
         <div class="row align-items-center g-4">
           <div class="col-lg-6">
@@ -41,8 +40,8 @@ app.innerHTML = `
             <h1>Book free events in a calm, guided flow.</h1>
             <p class="lead">Explore tours, talks, and family days. Create an account, reserve your spot, and manage bookings in one place.</p>
             <div class="d-flex gap-3 flex-wrap">
-              <button class="btn btn-dark btn-lg" data-page-link="home" data-scroll-target="#events">Browse events</button>
-              <button class="btn btn-outline-dark btn-lg" data-page-link="bookings">View my bookings</button>
+              <button class="btn btn-dark btn-lg" id="browseBtn">Browse events</button>
+              <button class="btn btn-outline-dark btn-lg" id="myBookingsBtn">View my bookings</button>
             </div>
           </div>
           <div class="col-lg-6">
@@ -69,7 +68,7 @@ app.innerHTML = `
       </div>
     </header>
 
-    <section id="how" class="container section-gap page-view" data-page="home">
+    <section id="howSection" class="container section-gap">
       <div class="section-header">
         <h2>Your booking journey</h2>
         <p>Designed for clarity and ease, from first browse to confirmation.</p>
@@ -99,20 +98,29 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section id="events" class="container section-gap page-view" data-page="home">
+    <section id="eventsSection" class="container section-gap d-none">
       <div class="section-header">
         <h2>Upcoming free events</h2>
-        <div class="filters">
-          <button class="btn btn-outline-dark btn-sm active">All</button>
-          <button class="btn btn-outline-dark btn-sm">Tours</button>
-          <button class="btn btn-outline-dark btn-sm">Talks</button>
-          <button class="btn btn-outline-dark btn-sm">Family</button>
+      </div>
+      <div class="mb-4">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-6">
+            <input type="text" class="form-control" id="searchInput" placeholder="Search events by name...">
+          </div>
+          <div class="col-md-6">
+            <div class="btn-group w-100" role="group">
+              <button type="button" class="btn btn-outline-dark filter-btn active" data-filter="all">All</button>
+              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="tours">Tours</button>
+              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="talks">Talks</button>
+              <button type="button" class="btn btn-outline-dark filter-btn" data-filter="family">Family</button>
+            </div>
+          </div>
         </div>
       </div>
       <div id="eventsGrid" class="row g-4"></div>
     </section>
 
-    <section id="bookings" class="container section-gap page-view is-hidden" data-page="bookings">
+    <section id="bookingsSection" class="container section-gap d-none">
       <div class="section-header">
         <div>
           <h2>Your bookings</h2>
@@ -129,7 +137,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section id="auth" class="auth-page page-view is-hidden" data-page="auth">
+    <section id="authSection" class="auth-page d-none">
       <div class="container">
         <div class="auth-shell">
           <div class="auth-card" id="loginCard">
@@ -172,7 +180,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <section id="cart" class="cart-page page-view is-hidden" data-page="cart">
+    <section id="cartSection" class="cart-page d-none">
       <div class="container">
         <div class="section-header">
           <div>
@@ -219,6 +227,14 @@ app.innerHTML = `
   </main>
 `;
 
+// --- DOM Elements ---
+const homeSection = document.querySelector("#homeSection");
+const howSection = document.querySelector("#howSection");
+const eventsSection = document.querySelector("#eventsSection");
+const bookingsSection = document.querySelector("#bookingsSection");
+const authSection = document.querySelector("#authSection");
+const cartSection = document.querySelector("#cartSection");
+
 const eventsGrid = document.querySelector("#eventsGrid");
 const bookingsList = document.querySelector("#bookingsList");
 const loginForm = document.querySelector("#loginForm");
@@ -239,7 +255,10 @@ const stripePayBtn = document.querySelector("#stripePayBtn");
 const checkoutBtn = document.querySelector("#checkoutBtn");
 const loginCard = document.querySelector("#loginCard");
 const registerCard = document.querySelector("#registerCard");
+const browseBtn = document.querySelector("#browseBtn");
+const myBookingsBtn = document.querySelector("#myBookingsBtn");
 
+// --- State ---
 const state = {
   token: localStorage.getItem("token"),
   user: JSON.parse(localStorage.getItem("user") || "null"),
@@ -301,13 +320,58 @@ const updateCartBadge = () => {
   cartBadge.textContent = String(state.cart.length);
 };
 
-const showPage = (pageId) => {
-  const pages = document.querySelectorAll("[data-page]");
-  pages.forEach((page) => {
-    page.classList.toggle("is-hidden", page.dataset.page !== pageId);
-  });
-  window.scrollTo({ top: 0, behavior: "smooth" });
+const showPage = (route) => {
+  homeSection.classList.toggle("d-none", route !== "/" && route !== "");
+  howSection.classList.toggle("d-none", route !== "/" && route !== "");
+  eventsSection.classList.toggle("d-none", route !== "events");
+  bookingsSection.classList.toggle("d-none", route !== "bookings");
+  cartSection.classList.toggle("d-none", route !== "cart");
+  authSection.classList.toggle("d-none", route !== "auth");
 };
+
+// --- Page State ---
+let currentFilter = "all";
+let currentSearch = "";
+
+// --- Route Handlers ---
+const renderHome = () => {
+  showPage("/");
+  loadEvents();
+};
+
+const renderEventsPage = () => {
+  showPage("events");
+  currentFilter = "all";
+  currentSearch = "";
+  document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
+  document.querySelector('[data-filter="all"]').classList.add("active");
+  document.querySelector("#searchInput").value = "";
+  loadEvents();
+};
+
+const renderBookingsPage = () => {
+  showPage("bookings");
+  loadBookings();
+};
+
+const renderCartPage = () => {
+  showPage("cart");
+  renderCart();
+};
+
+const renderAuthPage = () => {
+  showPage("auth");
+};
+
+// --- Router Setup ---
+router.register("/", renderHome);
+router.register("/events", renderEventsPage);
+router.register("/bookings", renderBookingsPage);
+router.register("/cart", renderCartPage);
+router.register("/auth", renderAuthPage);
+
+// Start router after all routes are registered
+router.start();
 
 const formatDate = (value, options) =>
   new Date(value).toLocaleDateString("en-GB", options);
@@ -320,7 +384,31 @@ const formatTime = (value) =>
 
 const renderEvents = (events) => {
   state.events = events;
-  eventsGrid.innerHTML = events
+  
+  // Filter and search events
+  let filtered = events;
+  
+  // Apply search filter
+  if (currentSearch) {
+    const search = currentSearch.toLowerCase();
+    filtered = filtered.filter(event =>
+      event.title.toLowerCase().includes(search) ||
+      event.description.toLowerCase().includes(search) ||
+      event.location.toLowerCase().includes(search)
+    );
+  }
+  
+  // Apply category filter
+  if (currentFilter !== "all") {
+    filtered = filtered.filter(event => {
+      const category = event.title.toLowerCase().includes("tour") ? "tours" :
+                      event.title.toLowerCase().includes("talk") ? "talks" :
+                      event.title.toLowerCase().includes("family") ? "family" : "";
+      return category === currentFilter;
+    });
+  }
+  
+  eventsGrid.innerHTML = filtered
     .map(
       (event) => `
         <div class="col-md-6 col-lg-4">
@@ -353,9 +441,20 @@ const renderEvents = (events) => {
       `
     )
     .join("");
+  
+  // Show message if no events
+  if (filtered.length === 0) {
+    eventsGrid.innerHTML = `
+      <div class="col-12">
+        <div class="alert alert-info">
+          No events found matching your search.
+        </div>
+      </div>
+    `;
+  }
 };
 
-const showLoading = () => {
+const showEventsLoading = () => {
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">
@@ -369,7 +468,7 @@ const showLoading = () => {
   `;
 };
 
-const showError = () => {
+const showEventsError = () => {
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">
@@ -377,7 +476,6 @@ const showError = () => {
           <h5>Events are offline</h5>
           <p>We could not reach the API. Please try again in a moment.</p>
         </div>
-        <button class="btn btn-outline-dark btn-sm">Retry</button>
       </div>
     </div>
   `;
@@ -456,7 +554,7 @@ const apiFetch = async (path, options = {}) => {
 };
 
 const loadEvents = async () => {
-  showLoading();
+  showEventsLoading();
   try {
     const response = await fetch(`${apiBaseUrl}/api/events`);
     if (!response.ok) {
@@ -465,7 +563,7 @@ const loadEvents = async () => {
     const data = await response.json();
     renderEvents(data);
   } catch (error) {
-    showError();
+    showEventsError();
   }
 };
 
@@ -550,7 +648,7 @@ const handleLogin = async (event) => {
     loginStatus.textContent = "Signed in successfully.";
     loginStatus.classList.add("success");
     showAuthView("login");
-    showPage("bookings");
+    router.navigateTo("bookings");
     loadBookings();
   } catch (error) {
     loginStatus.textContent = error.message;
@@ -577,7 +675,7 @@ const handleRegister = async (event) => {
     registerStatus.classList.add("success");
     registerCard.classList.add("d-none");
     loginCard.classList.remove("d-none");
-    showPage("bookings");
+    router.navigateTo("bookings");
     loadBookings();
   } catch (error) {
     registerStatus.textContent = error.message;
@@ -604,7 +702,7 @@ const addToCart = (eventId) => {
   }
   saveCart();
   renderCart();
-  showPage("cart");
+  router.navigateTo("cart");
 };
 
 const handleCancel = async (bookingId) => {
@@ -620,7 +718,7 @@ const handleCancel = async (bookingId) => {
 
 const checkoutCart = async () => {
   if (!state.token) {
-    showPage("auth");
+    router.navigateTo("auth");
     loginStatus.textContent = "Please sign in to complete checkout.";
     return;
   }
@@ -643,7 +741,7 @@ const checkoutCart = async () => {
     renderCart();
     loadBookings();
     loadEvents();
-    showPage("bookings");
+    router.navigateTo("bookings");
   } catch (error) {
     loginStatus.textContent = error.message;
   }
@@ -662,28 +760,16 @@ const loadHistory = async () => {
   }
 };
 
-document.querySelectorAll("[data-page-link]").forEach((button) => {
-  button.addEventListener("click", (event) => {
-    event.preventDefault();
-    const page = button.dataset.pageLink;
-    showPage(page);
-    const target = button.dataset.scrollTarget;
-    if (target) {
-      document.querySelector(target)?.scrollIntoView({ behavior: "smooth" });
-    }
-  });
-});
+// --- Event Listeners ---
+loginForm.addEventListener("submit", handleLogin);
+registerForm.addEventListener("submit", handleRegister);
 
 document.querySelectorAll("[data-auth-switch]").forEach((button) => {
   button.addEventListener("click", () => {
     const target = button.dataset.authSwitch;
     showAuthView(target);
-    showPage("auth");
   });
 });
-
-loginForm.addEventListener("submit", handleLogin);
-registerForm.addEventListener("submit", handleRegister);
 
 eventsGrid.addEventListener("click", (event) => {
   const button = event.target.closest(".book-btn");
@@ -751,22 +837,49 @@ checkoutBtn.addEventListener("click", checkoutCart);
 
 navLogin.addEventListener("click", () => {
   showAuthView("login");
-  showPage("auth");
+  router.navigateTo("auth");
 });
+
 navRegister.addEventListener("click", () => {
   showAuthView("register");
-  showPage("auth");
+  router.navigateTo("auth");
 });
+
 navLogout.addEventListener("click", () => {
   setAuthState(null, null);
   renderBookings([]);
   showAuthView("login");
-  showPage("home");
+  router.navigateTo("/");
 });
 
+browseBtn.addEventListener("click", () => {
+  router.navigateTo("events");
+});
+
+myBookingsBtn.addEventListener("click", () => {
+  router.navigateTo("bookings");
+});
+
+// Filter buttons
+document.querySelectorAll(".filter-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentFilter = btn.dataset.filter;
+    renderEvents(state.events);
+  });
+});
+
+// Search input
+const searchInput = document.querySelector("#searchInput");
+if (searchInput) {
+  searchInput.addEventListener("input", (e) => {
+    currentSearch = e.target.value;
+    renderEvents(state.events);
+  });
+}
+
+// --- Initialize ---
 syncAuthUI();
 updateCartBadge();
 showAuthView("login");
-loadEvents();
-loadBookings();
-renderCart();
