@@ -121,6 +121,12 @@ export const renderCart = () => {
   cartList.innerHTML = state.cart
     .map(
       (item) => {
+        // recompute availability from latest event data
+        const available = item.event.spots_left ?? item.event.capacity ?? 0;
+        // ensure guest_count does not exceed availability
+        if (available === 0) item.guest_count = 0;
+        if (item.guest_count > available) item.guest_count = available;
+
         const itemPrice = (item.event.price || 0) * item.guest_count;
         return `
         <div class="cart-item" data-cart-id="${item.event.id}">
@@ -135,14 +141,15 @@ export const renderCart = () => {
           </div>
           <div class="cart-controls">
             <label class="form-label">Guests</label>
-            <select class="form-select" data-cart-guests>
-              ${Array.from({ length: Math.min(item.maxGuests, 4) }, (_, i) => i + 1)
-                .map(
-                  (count) =>
-                    `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`
-                )
-                .join("")}
-            </select>
+            ${(() => {
+              const max = Math.min(available, 4);
+              if (max <= 0) {
+                return `<select class="form-select" data-cart-guests disabled><option>0</option></select><div class="text-danger mt-2">Sold out</div>`;
+              }
+              return `<select class="form-select" data-cart-guests>${Array.from({ length: max }, (_, i) => i + 1)
+                .map((count) => `<option value="${count}" ${count === item.guest_count ? "selected" : ""}>${count}</option>`)
+                .join("")}</select>`;
+            })()}
             <label class="form-label">Guest names (optional)</label>
             <textarea class="form-control" rows="2" data-cart-names placeholder="Alex, Priya, Sam">${
               item.guest_names.join(", ")
@@ -163,8 +170,12 @@ export const renderCart = () => {
 export const addToCart = (eventId) => {
   const event = state.events.find((item) => item.id === Number(eventId));
   if (!event) return;
-  
-  const maxGuests = event.spots_left ?? event.capacity ?? 1;
+  const available = event.spots_left ?? event.capacity ?? 0;
+  if (available <= 0) {
+    window.alert("This event is sold out and cannot be booked.");
+    return;
+  }
+  const maxGuests = available;
   const existing = state.cart.find((item) => item.event.id === event.id);
   
   if (existing) {
@@ -195,6 +206,12 @@ const checkoutCart = async () => {
   if (state.cart.length === 0) return;
   
   try {
+    // validate availability before attempting bookings
+    for (const item of state.cart) {
+      const available = item.event.spots_left ?? item.event.capacity ?? 0;
+      if (available <= 0) throw new Error(`${item.event.title} is sold out`);
+      if (item.guest_count > available) throw new Error(`Not enough spaces available for ${item.event.title}`);
+    }
     for (const item of state.cart) {
       await apiFetch("/api/bookings", {
         method: "POST",

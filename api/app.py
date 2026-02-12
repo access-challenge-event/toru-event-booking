@@ -487,6 +487,17 @@ def cancel_booking(current_user: User, booking_id: int):
     if booking.status == "cancelled":
         return jsonify(booking_to_dict(booking))
 
+    # Prevent cancellation within 24 hours of event start
+    event = booking.event
+    now = datetime.utcnow()
+    if event and event.starts_at:
+        try:
+            if event.starts_at - now <= timedelta(hours=24):
+                return json_error("Cannot cancel within 24 hours of the event start", 409)
+        except Exception:
+            # if comparison fails for any reason, fall back to disallowing close cancellations
+            pass
+
     booking.status = "cancelled"
     booking.cancelled_at = datetime.utcnow()
     db.session.commit()

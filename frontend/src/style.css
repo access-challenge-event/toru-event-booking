@@ -391,6 +391,11 @@ h1 {
 
 .auth-card.light .form-control {
   border: 1px solid #d9c6ad;
+  color: var(--ink);
+}
+
+.auth-card.light .form-control::placeholder {
+  color: rgba(28,26,23,0.5);
 }
 
 .auth-footnote {
