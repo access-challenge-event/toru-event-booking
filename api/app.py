@@ -49,6 +49,7 @@ class User(db.Model):
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp(),
     )
+    is_staff = db.Column(db.Boolean, default=False)
 
 
 class Event(db.Model):
@@ -175,6 +176,12 @@ def ensure_user_columns():
                     """
                 )
             )
+        if "is_staff" not in columns:
+            conn.execute(
+                text("ALTER TABLE users ADD COLUMN is_staff TINYINT(1) NOT NULL DEFAULT 0")
+            )
+
+
 
 
 def ensure_event_columns():
@@ -220,11 +227,35 @@ def ensure_event_columns():
                 pass
 
 
+
+def ensure_staff_user():
+    user = User.query.filter_by(email="staff@example.com").first()
+    target_hash = generate_password_hash("password")
+    
+    if not user:
+        user = User(
+            email="staff@example.com",
+            password_hash=target_hash,
+            first_name="Staff",
+            last_name="User",
+            is_staff=True
+        )
+        db.session.add(user)
+        print("Created default staff user: staff@example.com")
+    else:
+        # Force update password and staff status to ensure it works
+        user.password_hash = target_hash
+        user.is_staff = True
+        print("Updated existing staff user: staff@example.com")
+        
+    db.session.commit()
+
 with app.app_context():
     db.create_all()
     ensure_user_columns()
     ensure_booking_columns()
     ensure_event_columns()
+    ensure_staff_user()
 
 
 def json_error(message: str, status: int = 400):
@@ -441,6 +472,7 @@ def register_user():
                 "email": user.email,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
+                "is_staff": bool(user.is_staff),
             },
         }),
         201,
@@ -467,6 +499,7 @@ def login_user():
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "is_staff": bool(user.is_staff),
         },
     })
 
