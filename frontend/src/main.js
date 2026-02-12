@@ -140,6 +140,11 @@ const renderAuthRoute = () => {
 };
 
 const renderStaffRoute = () => {
+  if (!state.token) {
+    router.navigateTo("auth");
+    showAuthView("login");
+    return;
+  }
   hideAllPages();
   showStaffPage();
 };
