@@ -45,17 +45,17 @@ export const renderStaffHTML = () => `
           </div>
         </div>
         
-        <!-- Analytics Card (Placeholder) -->
+        <!-- Analytics Card -->
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm action-card" role="button">
+          <div class="card h-100 shadow-sm action-card" role="button" id="btnShowAnalytics">
             <div class="card-body text-center p-5">
-              <div class="mb-3 opacity-50">
+              <div class="mb-3 text-info">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-graph-up" viewBox="0 0 16 16">
                   <path fill-rule="evenodd" d="M0 0h1v15h15v1H0V0zm14.817 3.113a.5.5 0 0 1 .07.704l-4.5 5.5a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61 4.15-5.073a.5.5 0 0 1 .704-.07z"/>
                 </svg>
               </div>
               <h5 class="card-title">Analytics</h5>
-              <p class="card-text text-muted">View booking trends, revenue, and capacity utilization.</p>
+              <p class="card-text text-muted">Upcoming events, attendance progress, and reports.</p>
             </div>
           </div>
         </div>
@@ -209,6 +209,44 @@ export const renderStaffHTML = () => `
         </div>
       </div>
     </div>
+
+    <!-- Analytics View -->
+    <div id="staffAnalyticsView" class="d-none">
+      <button class="btn btn-outline-secondary mb-4 back-to-dashboard">
+        &larr; Back to Dashboard
+      </button>
+      <div class="row">
+        <div class="col-12">
+          <div class="card p-4 shadow-sm border-0">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+              <div>
+                <h4 class="mb-1">Upcoming events</h4>
+                <p class="text-muted mb-0">Download attendance reports and monitor check-ins.</p>
+              </div>
+              <button class="btn btn-dark btn-sm" id="refreshAnalyticsBtn">Refresh</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Event</th>
+                    <th>Date</th>
+                    <th>Location</th>
+                    <th>Booked</th>
+                    <th>Checked in</th>
+                    <th>Capacity</th>
+                    <th>Report</th>
+                  </tr>
+                </thead>
+                <tbody id="upcomingEventsList">
+                  <!-- Upcoming events will be loaded here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 `;
 
@@ -226,6 +264,8 @@ export const initStaffPage = () => {
 
   const btnShowManageBookings = document.querySelector("#btnShowManageBookings");
   const manageBookingsView = document.querySelector("#staffManageBookingsView");
+  const btnShowAnalytics = document.querySelector("#btnShowAnalytics");
+  const analyticsView = document.querySelector("#staffAnalyticsView");
 
   btnShowManageBookings?.addEventListener("click", () => {
     dashboardView?.classList.add("d-none");
@@ -233,10 +273,17 @@ export const initStaffPage = () => {
     loadAllBookings();
   });
 
+  btnShowAnalytics?.addEventListener("click", () => {
+    dashboardView?.classList.add("d-none");
+    analyticsView?.classList.remove("d-none");
+    loadUpcomingEvents();
+  });
+
   document.querySelectorAll(".back-to-dashboard").forEach(btn => {
     btn.addEventListener("click", () => {
       addEventView?.classList.add("d-none");
       manageBookingsView?.classList.add("d-none");
+      analyticsView?.classList.add("d-none");
       dashboardView?.classList.remove("d-none");
       stopScanner();
     });
@@ -245,6 +292,8 @@ export const initStaffPage = () => {
   const startScannerBtn = document.querySelector("#startScannerBtn");
   const stopScannerBtn = document.querySelector("#stopScannerBtn");
   const manualCheckinBtn = document.querySelector("#manualCheckinBtn");
+  const refreshAnalyticsBtn = document.querySelector("#refreshAnalyticsBtn");
+  const upcomingEventsList = document.querySelector("#upcomingEventsList");
 
   startScannerBtn?.addEventListener("click", () => {
     startScanner();
@@ -259,6 +308,18 @@ export const initStaffPage = () => {
     const code = (input?.value || "").trim();
     if (!code) return;
     handleCheckin(code);
+  });
+
+  refreshAnalyticsBtn?.addEventListener("click", () => {
+    loadUpcomingEvents();
+  });
+
+  upcomingEventsList?.addEventListener("click", (event) => {
+    const button = event.target.closest(".report-btn");
+    if (!button) return;
+    const eventId = button.dataset.eventId;
+    if (!eventId) return;
+    downloadAttendanceReport(eventId, button);
   });
 
   backToDashboardBtn?.addEventListener("click", () => {
@@ -458,6 +519,7 @@ export const showStaffPage = () => {
   document.querySelector("#staffDashboardView")?.classList.remove("d-none");
   document.querySelector("#staffAddEventView")?.classList.add("d-none");
   document.querySelector("#staffManageBookingsView")?.classList.add("d-none");
+  document.querySelector("#staffAnalyticsView")?.classList.add("d-none");
 
   // Reset Form for Add Mode
   document.querySelector("#addEventForm")?.reset();
@@ -574,6 +636,80 @@ const loadAllBookings = async () => {
 
   } catch (err) {
     container.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-danger">Error: ${err.message}</td></tr>`;
+  }
+};
+
+const loadUpcomingEvents = async () => {
+  const container = document.querySelector("#upcomingEventsList");
+  if (!container) return;
+
+  container.innerHTML = '<tr><td colspan="7" class="text-center p-4"><div class="spinner-border spinner-border-sm text-muted"></div> Loading events...</td></tr>';
+
+  try {
+    const token = state.token || localStorage.getItem("token");
+    const res = await fetch(`${apiBaseUrl}/api/staff/events/upcoming`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error("Failed to load upcoming events");
+    const events = await res.json();
+
+    if (!events.length) {
+      container.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">No upcoming events.</td></tr>';
+      return;
+    }
+
+    container.innerHTML = events.map(event => {
+      const booked = event.booked_count ?? 0;
+      const checkedIn = event.checked_in_count ?? 0;
+      return `
+        <tr>
+          <td>
+            <div class="fw-bold">${event.title}</div>
+            <div class="small text-muted">${event.description?.slice(0, 60) || ""}</div>
+          </td>
+          <td>${new Date(event.starts_at).toLocaleString()}</td>
+          <td>${event.location || ""}</td>
+          <td>${booked}</td>
+          <td>${checkedIn}</td>
+          <td>${event.capacity ?? ""}</td>
+          <td>
+            <button class="btn btn-outline-dark btn-sm report-btn" data-event-id="${event.id}">Attendance CSV</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    container.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-danger">Error: ${err.message}</td></tr>`;
+  }
+};
+
+const downloadAttendanceReport = async (eventId, button) => {
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Generating...";
+
+  try {
+    const token = state.token || localStorage.getItem("token");
+    const res = await fetch(`${apiBaseUrl}/api/staff/events/${eventId}/attendance`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error("Failed to generate report");
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `attendance_event_${eventId}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    window.URL.revokeObjectURL(url);
+    link.remove();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
   }
 };
 
