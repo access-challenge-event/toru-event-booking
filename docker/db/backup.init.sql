@@ -1,0 +1,127 @@
+CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  first_name VARCHAR(120) NOT NULL,
+  last_name VARCHAR(120) NOT NULL,
+  phone VARCHAR(50) NULL,
+  email_opt_in TINYINT(1) NOT NULL DEFAULT 1,
+  sms_opt_in TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  is_staff BOOLEAN,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS categories (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_categories_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS locations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_locations_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  starts_at DATETIME NOT NULL,
+  ends_at DATETIME NOT NULL,
+  location_id BIGINT UNSIGNED NULL,
+  is_free TINYINT(1) NOT NULL DEFAULT 1,
+  price DECIMAL(10, 2) UNSIGNED NOT NULL DEFAULT 0.00,
+  capacity INT UNSIGNED NOT NULL DEFAULT 0,
+  category_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_events_starts_at (starts_at),
+  CONSTRAINT fk_events_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
+  CONSTRAINT fk_events_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  event_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('confirmed','cancelled') NOT NULL DEFAULT 'confirmed',
+  guest_count INT UNSIGNED NOT NULL DEFAULT 1,
+  guest_names TEXT NULL,
+  booked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  cancelled_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_bookings_user_event (user_id, event_id),
+  KEY idx_bookings_user (user_id),
+  KEY idx_bookings_event (event_id),
+  CONSTRAINT fk_bookings_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_bookings_event FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO categories (id, name) VALUES
+  (1, 'tours'),
+  (2, 'talks'),
+  (3, 'family');
+
+-- Do not attempt an ALTER ... IF NOT EXISTS here (not supported in older MySQL).
+-- The application will ensure the `category_id` column and FK at runtime if needed.
+
+-- Insert seed events only if the events table is empty (won't duplicate on re-run)
+-- Seed locations
+INSERT INTO locations (id, name)
+SELECT * FROM (
+  SELECT 1 AS id, 'Delapre Abbey Gardens' AS name
+  UNION ALL SELECT 2, 'Visitor Center'
+  UNION ALL SELECT 3, 'Main Hall'
+  UNION ALL SELECT 4, 'Abbey Dining Room'
+  UNION ALL SELECT 5, 'Studio Room'
+) AS tmp_loc
+WHERE NOT EXISTS (SELECT 1 FROM locations LIMIT 1);
+
+-- Seed events using location_id
+INSERT INTO events (title, description, starts_at, ends_at, location_id, is_free, price, capacity, category_id)
+SELECT * FROM (
+  SELECT 'Abbey Gardens Tour' AS title, 'Guided tour of the historic gardens.' AS description, '2026-03-01 10:00:00' AS starts_at, '2026-03-01 11:30:00' AS ends_at, 1 AS location_id, 1 AS is_free, 0.00 AS price, 30 AS capacity, 1 AS category_id
+  UNION ALL SELECT 'Family Craft Morning','Family friendly craft activities in the visitor center.','2026-03-05 10:00:00','2026-03-05 12:00:00',2,1,0.00,40,3
+  UNION ALL SELECT 'Local History Talk','Talk on the history of Delapre Abbey.','2026-03-12 18:30:00','2026-03-12 20:00:00',3,1,0.00,80,2
+  UNION ALL SELECT 'Photography Workshop','Learn professional photography techniques in the Abbey grounds.','2026-03-08 09:00:00','2026-03-08 13:00:00',1,0,15.00,12,NULL
+  UNION ALL SELECT 'Afternoon Tea Experience','Traditional afternoon tea served in the historic dining room.','2026-03-15 14:00:00','2026-03-15 16:00:00',4,0,22.50,20,NULL
+  UNION ALL SELECT 'Medieval History Tour','In-depth guided tour exploring the Abbey''s medieval past.','2026-03-18 10:30:00','2026-03-18 12:30:00',3,0,10.00,25,1
+  UNION ALL SELECT 'Watercolour Painting Class','Beginner-friendly painting class with all materials provided.','2026-03-22 10:00:00','2026-03-22 15:00:00',5,0,28.00,15,NULL
+  UNION ALL SELECT 'Ghost Stories Evening','Spine-tingling tales of the Abbey''s haunted history.','2026-03-25 19:00:00','2026-03-25 21:00:00',3,0,12.00,50,NULL
+  UNION ALL SELECT 'Garden Design Workshop','Expert guidance on creating your own heritage-style garden.','2026-03-29 13:00:00','2026-03-29 17:00:00',2,0,30.00,18,NULL
+  UNION ALL SELECT 'Family Nature Walk','Explore local wildlife with our naturalist guide.','2026-04-02 10:00:00','2026-04-02 12:00:00',1,1,0.00,35,3
+  UNION ALL SELECT 'Calligraphy Workshop','Learn the art of beautiful handwriting and illumination.','2026-04-05 14:00:00','2026-04-05 17:00:00',5,0,18.50,0,NULL
+) AS tmp
+WHERE NOT EXISTS (SELECT 1 FROM events LIMIT 1);
+
+-- Seed default staff user (password: 'password')
+INSERT INTO users (email, password_hash, first_name, last_name, is_staff)
+SELECT 'staff@example.com', 'pbkdf2:sha256:260000$g7kI2aI2$9d45862d53c3937397e5b152d19f5635f116544023797825590983193e28aa45', 'Staff', 'User', 1
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@example.com');
+
+CREATE TABLE IF NOT EXISTS event_waitlist (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  requested_spots INT UNSIGNED NOT NULL DEFAULT 1,
+  status ENUM('waiting','notified','converted','expired','cancelled') NOT NULL DEFAULT 'waiting',
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_waitlist_event (event_id),
+  KEY idx_waitlist_user (user_id),
+  CONSTRAINT fk_waitlist_event FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE,
+  CONSTRAINT fk_waitlist_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);

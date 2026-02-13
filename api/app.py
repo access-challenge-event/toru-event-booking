@@ -129,6 +129,55 @@ class Location(db.Model):
         onupdate=func.current_timestamp(),
     )
 
+# waitlist - ben
+def process_waitlist_for_event(event_id: int):
+    event = db.session.get(Event, event_id)
+    if not event:
+        return
+
+    confirmed = (
+        db.session.query(func.coalesce(func.sum(Booking.guest_count), 0))
+        .filter_by(event_id=event.id, status="confirmed")
+        .scalar()
+    )
+
+    available = event.capacity - int(confirmed or 0)
+
+    if available <= 0:
+        return
+
+    waitlist = (
+        EventWaitlist.query
+        .filter_by(event_id=event.id, status="waiting")
+        .order_by(EventWaitlist.created_at.asc())
+        .all()
+    )
+
+    for entry in waitlist:
+        if entry.requested_spots <= available:
+
+            # Simulate email (like your reminder system)
+            notifications_dir = os.path.join(os.path.dirname(__file__), "notifications")
+            if not os.path.exists(notifications_dir):
+                os.makedirs(notifications_dir)
+
+            filename = f"waitlist_{entry.id}.txt"
+            filepath = os.path.join(notifications_dir, filename)
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(f"Subject: A space is available for {event.title}\n\n")
+                f.write(f"Hello {entry.user.first_name},\n\n")
+                f.write("Good news! Spaces have become available.\n")
+                f.write(f"Event: {event.title}\n")
+                f.write(f"Date: {event.starts_at.strftime('%Y-%m-%d %H:%M')}\n\n")
+                f.write("Please log in and book now.\n")
+
+            entry.status = "notified"
+            entry.notified_at = datetime.utcnow()
+            available -= entry.requested_spots
+
+    db.session.commit()
+
 
 def ensure_booking_columns():
     with db.engine.begin() as conn:
@@ -319,6 +368,31 @@ def ensure_staff_user():
 
 with app.app_context():
     db.create_all()
+
+    # waitlist - ben
+    def ensure_waitlist_table():
+        with db.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS event_waitlist (
+                    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    event_id BIGINT UNSIGNED NOT NULL,
+                    user_id BIGINT UNSIGNED NOT NULL,
+                    requested_spots INT UNSIGNED NOT NULL DEFAULT 1,
+                    status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+                    notified_at DATETIME NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_waitlist_event (event_id),
+                    KEY idx_waitlist_user (user_id),
+                    CONSTRAINT fk_waitlist_event FOREIGN KEY (event_id)
+                        REFERENCES events (id) ON DELETE CASCADE,
+                    CONSTRAINT fk_waitlist_user FOREIGN KEY (user_id)
+                        REFERENCES users (id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """))
+
+    ensure_waitlist_table()
+
     ensure_user_columns()
     ensure_booking_columns()
     ensure_event_columns()
@@ -1088,6 +1162,10 @@ def cancel_booking(current_user: User, booking_id: int):
     booking.status = "cancelled"
     booking.cancelled_at = datetime.utcnow()
     db.session.commit()
+
+    #waitlist - ben
+    process_waitlist_for_event(booking.event_id)
+
     return jsonify(booking_to_dict(booking))
 
 
@@ -1158,3 +1236,75 @@ def send_reminders():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
+
+
+
+# waitlist - Ben
+class EventWaitlist(db.Model):
+    __tablename__ = "event_waitlist"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    event_id = db.Column(db.BigInteger, db.ForeignKey("events.id"), nullable=False)
+    user_id = db.Column(db.BigInteger, db.ForeignKey("users.id"), nullable=False)
+    requested_spots = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(
+        db.String(20),
+        nullable=False,
+        default="waiting"  # waiting | notified | converted | expired | cancelled
+    )
+    notified_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
+
+    user = db.relationship("User", backref="waitlist_entries")
+    event = db.relationship("Event", backref="waitlist_entries")
+
+@app.post("/api/events/<int:event_id>/waitlist")
+@require_auth
+def join_waitlist(current_user: User, event_id: int):
+    payload = request.get_json(silent=True) or {}
+    requested_spots = payload.get("requested_spots", 1)
+
+    try:
+        requested_spots = int(requested_spots)
+    except (TypeError, ValueError):
+        return json_error("Invalid number of requested spots")
+
+    if requested_spots < 1:
+        return json_error("Requested spots must be at least 1")
+
+    event = db.session.get(Event, event_id)
+    if not event:
+        return json_error("Event not found", 404)
+
+    # Calculate available spots
+    confirmed = (
+        db.session.query(func.coalesce(func.sum(Booking.guest_count), 0))
+        .filter_by(event_id=event.id, status="confirmed")
+        .scalar()
+    )
+    available = event.capacity - int(confirmed or 0)
+
+    if available >= requested_spots:
+        return json_error("Spots are available. Please book normally.", 400)
+
+    # Prevent duplicate waitlist entry
+    existing = EventWaitlist.query.filter_by(
+        event_id=event.id,
+        user_id=current_user.id,
+        status="waiting"
+    ).first()
+
+    if existing:
+        return json_error("Already on waitlist", 409)
+
+    entry = EventWaitlist(
+        event_id=event.id,
+        user_id=current_user.id,
+        requested_spots=requested_spots,
+        status="waiting"
+    )
+
+    db.session.add(entry)
+    db.session.commit()
+
+    return jsonify({"message": "Added to waitlist"}), 201

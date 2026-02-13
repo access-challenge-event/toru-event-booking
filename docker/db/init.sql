@@ -101,7 +101,7 @@ SELECT * FROM (
   UNION ALL SELECT 'Ghost Stories Evening','Spine-tingling tales of the Abbey''s haunted history.','2026-03-25 19:00:00','2026-03-25 21:00:00',3,0,12.00,50,NULL
   UNION ALL SELECT 'Garden Design Workshop','Expert guidance on creating your own heritage-style garden.','2026-03-29 13:00:00','2026-03-29 17:00:00',2,0,30.00,18,NULL
   UNION ALL SELECT 'Family Nature Walk','Explore local wildlife with our naturalist guide.','2026-04-02 10:00:00','2026-04-02 12:00:00',1,1,0.00,35,3
-  UNION ALL SELECT 'Calligraphy Workshop','Learn the art of beautiful handwriting and illumination.','2026-04-05 14:00:00','2026-04-05 17:00:00',5,0,18.50,10,NULL
+  UNION ALL SELECT 'Calligraphy Workshop','Learn the art of beautiful handwriting and illumination.','2026-04-05 14:00:00','2026-04-05 17:00:00',5,0,18.50,0,NULL
 ) AS tmp
 WHERE NOT EXISTS (SELECT 1 FROM events LIMIT 1);
 
@@ -110,3 +110,18 @@ INSERT INTO users (email, password_hash, first_name, last_name, is_staff)
 SELECT 'staff@example.com', 'pbkdf2:sha256:260000$g7kI2aI2$9d45862d53c3937397e5b152d19f5635f116544023797825590983193e28aa45', 'Staff', 'User', 1
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@example.com');
+
+CREATE TABLE IF NOT EXISTS event_waitlist (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  requested_spots INT UNSIGNED NOT NULL DEFAULT 1,
+  status ENUM('waiting','notified','converted','expired','cancelled') NOT NULL DEFAULT 'waiting',
+  notified_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_waitlist_event (event_id),
+  KEY idx_waitlist_user (user_id),
+  CONSTRAINT fk_waitlist_event FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE,
+  CONSTRAINT fk_waitlist_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
