@@ -2,6 +2,7 @@ import { state } from "../state.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
 import { apiFetch } from "../utils/api.js";
 import { loadEvents } from "./events.js";
+import QRCode from "qrcode";
 
 export const renderBookingsHTML = () => `
   <section id="bookingsSection" class="container section-gap d-none">
@@ -107,6 +108,15 @@ const renderBookings = (bookings, isHistory = false) => {
         ? `Guests: ${booking.guest_names.map(g => (typeof g === 'object' ? `${g.name} (${g.type})` : g)).join(', ')}`
         : (booking.guest_count > 1 ? `Guests: ${booking.guest_count}` : 'Guest: 1');
 
+      const passMarkup = booking.confirmation_code && booking.status !== "cancelled"
+        ? `
+          <div class="booking-pass" data-confirmation-code="${booking.confirmation_code}">
+            <div class="booking-pass-label">Check-in code</div>
+            <div class="booking-pass-placeholder">Loading code...</div>
+          </div>
+        `
+        : "";
+
       if (isHistory) {
         return `
           <div class="booking-row">
@@ -116,9 +126,10 @@ const renderBookings = (bookings, isHistory = false) => {
               <p class="mb-0 booking-guest">${guestInfo}</p>
               <p class="mb-0" style="color:rgba(0,0,0,0.6)">${action} — ${formatDate(when, { weekday: 'short', month: 'short', day: 'numeric' })} ${formatTime(when)}</p>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap justify-content-end">
               <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
               ${booking.status !== 'cancelled' ? `<button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>` : ''}
+              ${passMarkup}
             </div>
           </div>
         `;
@@ -131,15 +142,43 @@ const renderBookings = (bookings, isHistory = false) => {
             <p class="mb-0">${formatDate(booking.event.starts_at, { weekday: 'short', month: 'short', day: 'numeric' })} · ${formatTime(booking.event.starts_at)} · ${booking.event.location}</p>
             <p class="mb-0 booking-guest">${guestInfo}</p>
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-wrap justify-content-end">
             <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
             <button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>
             <button class="btn btn-outline-dark btn-sm cancel-btn" data-booking-id="${booking.id}">Cancel</button>
+            ${passMarkup}
           </div>
         </div>
       `;
     })
     .join("");
+
+  renderBookingPasses(bookingsList);
+};
+
+const renderBookingPasses = async (bookingsList) => {
+  const passNodes = Array.from(bookingsList.querySelectorAll(".booking-pass"));
+  if (passNodes.length === 0) return;
+
+  await Promise.all(
+    passNodes.map(async (node) => {
+      const code = node.dataset.confirmationCode;
+      if (!code) return;
+      try {
+        const dataUrl = await QRCode.toDataURL(code, { width: 120, margin: 1 });
+        node.innerHTML = `
+          <div class="booking-pass-label">Check-in code</div>
+          <img src="${dataUrl}" alt="Confirmation code ${code}" class="booking-pass-image" />
+          <div class="booking-pass-code">${code}</div>
+        `;
+      } catch (error) {
+        node.innerHTML = `
+          <div class="booking-pass-label">Check-in code</div>
+          <div class="booking-pass-code">${code}</div>
+        `;
+      }
+    })
+  );
 };
 
 export const loadBookings = async () => {
