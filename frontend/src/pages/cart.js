@@ -28,7 +28,7 @@ export const renderCartHTML = () => `
           </div>
           <div id="guestFormContainer"></div>
           <div id="authCheckoutControls">
-            <button class="btn btn-light w-100" id="stripePayBtn">Pay with Stripe</button>
+            <button class="btn btn-light w-100" id="stripePayBtn" style="margin-bottom: 10px;">Pay with Stripe</button>
             <button class="btn btn-outline-light w-100" id="checkoutBtn">Confirm bookings</button>
           </div>
           <p class="cart-note" id="cartNote">You will receive confirmation in your bookings list.</p>
