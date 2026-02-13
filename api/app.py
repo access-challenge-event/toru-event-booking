@@ -43,6 +43,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(120), nullable=False)
     last_name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(50), nullable=True)
+    email_opt_in = db.Column(db.Boolean, nullable=False, default=True)
+    sms_opt_in = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -180,6 +183,12 @@ def ensure_user_columns():
             conn.execute(
                 text("ALTER TABLE users ADD COLUMN is_staff TINYINT(1) NOT NULL DEFAULT 0")
             )
+        if "phone" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(50) NULL"))
+        if "email_opt_in" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN email_opt_in TINYINT(1) NOT NULL DEFAULT 1"))
+        if "sms_opt_in" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN sms_opt_in TINYINT(1) NOT NULL DEFAULT 0"))
 
 
 
@@ -268,6 +277,9 @@ def token_for_user(user: User) -> str:
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "phone": user.phone,
+        "email_opt_in": bool(user.email_opt_in),
+        "sms_opt_in": bool(user.sms_opt_in),
         "exp": datetime.utcnow() + timedelta(hours=12),
     }
     return jwt.encode(payload, jwt_secret, algorithm="HS256")
@@ -447,6 +459,9 @@ def register_user():
     password = payload.get("password") or ""
     first_name = (payload.get("first_name") or "").strip()
     last_name = (payload.get("last_name") or "").strip()
+    phone = (payload.get("phone") or "").strip() or None
+    email_opt_in = bool(payload.get("email_opt_in", True))
+    sms_opt_in = bool(payload.get("sms_opt_in", False))
 
     if not email or not password or not first_name or not last_name:
         return json_error("Email, password, first name, and last name are required")
@@ -459,6 +474,9 @@ def register_user():
         password_hash=generate_password_hash(password),
         first_name=first_name,
         last_name=last_name,
+        phone=phone,
+        email_opt_in=email_opt_in,
+        sms_opt_in=sms_opt_in,
     )
     db.session.add(user)
     db.session.commit()
@@ -473,6 +491,9 @@ def register_user():
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "is_staff": bool(user.is_staff),
+                "phone": user.phone,
+                "email_opt_in": bool(user.email_opt_in),
+                "sms_opt_in": bool(user.sms_opt_in),
             },
         }),
         201,
@@ -500,7 +521,47 @@ def login_user():
             "first_name": user.first_name,
             "last_name": user.last_name,
             "is_staff": bool(user.is_staff),
+            "phone": user.phone,
+            "email_opt_in": bool(user.email_opt_in),
+            "sms_opt_in": bool(user.sms_opt_in),
         },
+    })
+
+
+@app.get("/api/user/preferences")
+@require_auth
+def get_user_preferences(current_user: User):
+    return jsonify({
+        "phone": current_user.phone,
+        "email_opt_in": bool(current_user.email_opt_in),
+        "sms_opt_in": bool(current_user.sms_opt_in),
+    })
+
+
+@app.put("/api/user/preferences")
+@require_auth
+def update_user_preferences(current_user: User):
+    payload = request.get_json(silent=True) or {}
+    phone = (payload.get("phone") or "").strip() or None
+    email_opt_in = payload.get("email_opt_in")
+    sms_opt_in = payload.get("sms_opt_in")
+
+    # Basic phone validation
+    if phone and not re.match(r'^[\d\s\-\+\(\)]{7,20}$', phone):
+        return json_error("Please enter a valid phone number")
+
+    if email_opt_in is not None:
+        current_user.email_opt_in = bool(email_opt_in)
+    if sms_opt_in is not None:
+        current_user.sms_opt_in = bool(sms_opt_in)
+
+    current_user.phone = phone
+    db.session.commit()
+
+    return jsonify({
+        "phone": current_user.phone,
+        "email_opt_in": bool(current_user.email_opt_in),
+        "sms_opt_in": bool(current_user.sms_opt_in),
     })
 
 

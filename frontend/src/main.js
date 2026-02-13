@@ -10,6 +10,7 @@ import { renderCartHTML, initCartPage, showCartPage, hideCartPage, renderCart, a
 
 import { renderAuthHTML, initAuthPage, showAuthPage, hideAuthPage, showAuthView, syncAuthUI } from "./pages/auth.js";
 import { renderStaffHTML, initStaffPage, showStaffPage, hideStaffPage } from "./pages/staff.js";
+import { renderPreferencesHTML, initPreferencesPage, showPreferencesPage, hidePreferencesPage } from "./pages/preferences.js";
 
 const app = document.querySelector("#app");
 
@@ -30,6 +31,7 @@ app.innerHTML = `
           <li class="nav-item"><a class="nav-link" href="${router.href('bookings')}">Bookings</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
           <li class="nav-item d-none" id="navStaff"><a class="nav-link" href="${router.href('staff')}">Staff</a></li>
+          <li class="nav-item d-none" id="navPrefs"><a class="nav-link" href="${router.href('preferences')}">Preferences</a></li>
         </ul>
         <div class="d-flex gap-2 ms-lg-3">
           <button class="btn btn-dark btn-sm" id="navLogin">Sign in</button>
@@ -44,6 +46,7 @@ app.innerHTML = `
     ${renderEventsHTML()}
     ${renderBookingsHTML()}
     ${renderAuthHTML()}
+    ${renderPreferencesHTML()}
 
     ${renderCartHTML()}
     ${renderStaffHTML()}
@@ -108,6 +111,7 @@ const hideAllPages = () => {
   hideCartPage();
   hideAuthPage();
   hideStaffPage();
+  hidePreferencesPage();
 };
 
 // --- Route Handlers ---
@@ -139,6 +143,16 @@ const renderAuthRoute = () => {
   showAuthPage();
 };
 
+const renderPreferencesRoute = () => {
+  if (!state.token) {
+    router.navigateTo("auth");
+    showAuthView("login");
+    return;
+  }
+  hideAllPages();
+  showPreferencesPage();
+};
+
 const renderStaffRoute = () => {
   if (!state.token) {
     router.navigateTo("auth");
@@ -156,6 +170,7 @@ router.register("/bookings", renderBookingsRoute);
 router.register("/cart", renderCartRoute);
 router.register("/auth", renderAuthRoute);
 router.register("/staff", renderStaffRoute);
+router.register("/preferences", renderPreferencesRoute);
 
 // --- Initialize Page Modules ---
 initHomePage();
@@ -164,6 +179,7 @@ initBookingsPage();
 initCartPage();
 initAuthPage();
 initStaffPage();
+initPreferencesPage();
 
 // --- Global Event Listeners ---
 elements.eventsGrid.addEventListener("click", (event) => {

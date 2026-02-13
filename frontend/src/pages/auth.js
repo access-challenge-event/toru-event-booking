@@ -102,6 +102,9 @@ export const syncAuthUI = () => {
   const isStaff = isAuthed && state.user && state.user.is_staff;
   navStaff?.classList.toggle("d-none", !isStaff);
 
+  const navPrefs = document.querySelector("#navPrefs");
+  navPrefs?.classList.toggle("d-none", !isAuthed);
+
   updateAuthGreeting();
 };
 

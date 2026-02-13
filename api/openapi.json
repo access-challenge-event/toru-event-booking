@@ -41,6 +41,9 @@
               "email": { "type": "string" },
               "first_name": { "type": "string" },
               "last_name": { "type": "string" }
+                  ,"phone": { "type": "string", "nullable": true }
+                  ,"email_opt_in": { "type": "boolean" }
+                  ,"sms_opt_in": { "type": "boolean" }
             }
           }
         }
@@ -255,6 +258,65 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Booking" }
+              }
+            }
+          }
+        }
+      }
+    }
+    ,"/api/user/preferences": {
+      "get": {
+        "summary": "Get user preferences",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "phone": { "type": "string", "nullable": true },
+                    "email_opt_in": { "type": "boolean" },
+                    "sms_opt_in": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update user preferences",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": { "type": "string" },
+                  "email_opt_in": { "type": "boolean" },
+                  "sms_opt_in": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "phone": { "type": "string", "nullable": true },
+                    "email_opt_in": { "type": "boolean" },
+                    "sms_opt_in": { "type": "boolean" }
+                  }
+                }
               }
             }
           }
