@@ -338,6 +338,64 @@ h1 {
   margin-bottom: 1rem;
 }
 
+.booking-pass {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.6rem;
+  border-radius: 0.75rem;
+  border: 1px dashed #d9c6ad;
+  background: #fff;
+  min-width: 140px;
+  text-align: center;
+}
+
+.booking-pass-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(28, 26, 23, 0.6);
+}
+
+.booking-pass-image {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+.booking-pass-code {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: #1c1a17;
+}
+
+.checkin-panel {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  padding: 1.25rem;
+  border-radius: 1rem;
+  border: 1px solid #efe1cf;
+  background: #fffaf4;
+}
+
+.scanner-region {
+  width: 100%;
+  min-height: 220px;
+  border-radius: 0.75rem;
+  border: 1px dashed #d9c6ad;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.checkin-manual {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .booking-guest {
   color: rgba(28, 26, 23, 0.7);
   font-size: 0.9rem;
