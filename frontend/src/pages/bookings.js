@@ -126,7 +126,7 @@ const renderBookings = (bookings, isHistory = false) => {
               <p class="mb-0 booking-guest">${guestInfo}</p>
               <p class="mb-0" style="color:rgba(0,0,0,0.6)">${action} — ${formatDate(when, { weekday: 'short', month: 'short', day: 'numeric' })} ${formatTime(when)}</p>
             </div>
-            <div class="d-flex gap-2 flex-wrap justify-content-end">
+            <div class="d-flex gap-2 flex-wrap justify-content-end booking-actions">
               <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
               ${booking.status !== 'cancelled' ? `<button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>` : ''}
               ${passMarkup}
@@ -142,7 +142,7 @@ const renderBookings = (bookings, isHistory = false) => {
             <p class="mb-0">${formatDate(booking.event.starts_at, { weekday: 'short', month: 'short', day: 'numeric' })} · ${formatTime(booking.event.starts_at)} · ${booking.event.location}</p>
             <p class="mb-0 booking-guest">${guestInfo}</p>
           </div>
-          <div class="d-flex gap-2 flex-wrap justify-content-end">
+          <div class="d-flex gap-2 flex-wrap justify-content-end booking-actions">
             <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
             <button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>
             <button class="btn btn-outline-dark btn-sm cancel-btn" data-booking-id="${booking.id}">Cancel</button>

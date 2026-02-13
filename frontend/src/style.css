@@ -338,6 +338,14 @@ h1 {
   margin-bottom: 1rem;
 }
 
+.booking-actions {
+  align-items: flex-start;
+}
+
+.booking-actions .btn {
+  align-self: flex-start;
+}
+
 .booking-pass {
   display: grid;
   gap: 0.35rem;

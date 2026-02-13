@@ -455,7 +455,7 @@ def build_confirmation_qr(data: str):
     )
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
@@ -885,9 +885,10 @@ def generate_confirmation(current_user: User, booking_id: int):
     pdf.cell(190, 10, f"Confirmation Code: {booking.confirmation_code or 'N/A'}", ln=True)
     if booking.confirmation_code:
         qr_buffer = build_confirmation_qr(booking.confirmation_code)
-        current_y = pdf.get_y() + 2
-        pdf.image(qr_buffer, x=10, y=current_y, w=35, h=35)
-        pdf.set_xy(50, current_y + 6)
+        qr_x = 165
+        qr_y = 22
+        pdf.image(qr_buffer, type="PNG", x=qr_x, y=qr_y, w=35, h=35)
+        pdf.set_xy(10, pdf.get_y())
         pdf.set_font("Arial", "I", 10)
         pdf.multi_cell(140, 6, "Scan this code at check-in.")
         pdf.set_font("Arial", "", 12)
@@ -905,7 +906,9 @@ def generate_confirmation(current_user: User, booking_id: int):
     pdf.set_font("Arial", "", 10)
     pdf.multi_cell(190, 10, "Please bring this confirmation with you (digital or printed) to the event. We look forward to seeing you there!")
 
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    pdf_bytes = pdf.output(dest='S')
+    if isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
