@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import uuid
 import io
 from fpdf import FPDF
+import qrcode
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
@@ -99,6 +100,8 @@ class Booking(db.Model):
     confirmation_code = db.Column(db.String(10), unique=True, nullable=True)
     booked_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     cancelled_at = db.Column(db.DateTime, nullable=True)
+    checked_in = db.Column(db.Boolean, nullable=False, default=False)
+    checked_in_at = db.Column(db.DateTime, nullable=True)
 
     user = db.relationship("User", backref="bookings")
     event = db.relationship("Event", backref="bookings")
@@ -163,6 +166,10 @@ def ensure_booking_columns():
                 conn.execute(text("CREATE UNIQUE INDEX uk_bookings_confirmation_code ON bookings(confirmation_code)"))
             except Exception:
                 pass
+        if "checked_in" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN checked_in TINYINT(1) NOT NULL DEFAULT 0"))
+        if "checked_in_at" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN checked_in_at DATETIME NULL"))
         # Make user_id nullable if it isn't already
         try:
             conn.execute(text("ALTER TABLE bookings MODIFY COLUMN user_id BIGINT UNSIGNED NULL"))
@@ -433,8 +440,26 @@ def booking_to_dict(booking: Booking):
         "confirmation_code": booking.confirmation_code,
         "booked_at": booking.booked_at.isoformat() if booking.booked_at else None,
         "cancelled_at": booking.cancelled_at.isoformat() if booking.cancelled_at else None,
+        "checked_in": bool(booking.checked_in),
+        "checked_in_at": booking.checked_in_at.isoformat() if booking.checked_in_at else None,
         "event": event_to_dict(booking.event),
     }
+
+
+def build_confirmation_qr(data: str):
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=6,
+        border=2,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
 
 
 @app.get("/api/health")
@@ -858,6 +883,15 @@ def generate_confirmation(current_user: User, booking_id: int):
     pdf.ln(10)
     pdf.set_font("Arial", "", 12)
     pdf.cell(190, 10, f"Confirmation Code: {booking.confirmation_code or 'N/A'}", ln=True)
+    if booking.confirmation_code:
+        qr_buffer = build_confirmation_qr(booking.confirmation_code)
+        current_y = pdf.get_y() + 2
+        pdf.image(qr_buffer, x=10, y=current_y, w=35, h=35)
+        pdf.set_xy(50, current_y + 6)
+        pdf.set_font("Arial", "I", 10)
+        pdf.multi_cell(140, 6, "Scan this code at check-in.")
+        pdf.set_font("Arial", "", 12)
+        pdf.ln(2)
     pdf.cell(190, 10, f"Event: {booking.event.title}", ln=True)
     pdf.cell(190, 10, f"Attendee: {current_user.first_name} {current_user.last_name}", ln=True)
     pdf.cell(190, 10, f"Guests: {booking.guest_count}", ln=True)
@@ -1100,6 +1134,28 @@ def list_all_bookings(current_user: User):
         .all()
     )
     return jsonify([booking_to_dict(booking) for booking in bookings])
+
+
+@app.post("/api/staff/checkin")
+@require_staff
+def staff_checkin(current_user: User):
+    payload = request.get_json(silent=True) or {}
+    confirmation_code = (payload.get("confirmation_code") or "").strip().upper()
+    if not confirmation_code:
+        return json_error("Confirmation code is required")
+
+    booking = Booking.query.filter_by(confirmation_code=confirmation_code).first()
+    if not booking:
+        return json_error("Booking not found", 404)
+    if booking.status != "confirmed":
+        return json_error("Booking is not confirmed", 409)
+    if booking.checked_in:
+        return json_error("Booking already checked in", 409)
+
+    booking.checked_in = True
+    booking.checked_in_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(booking_to_dict(booking))
 
 
 @app.cli.command("send-reminders")
