@@ -28,13 +28,42 @@ export const initBookingsPage = () => {
   const refreshBookings = document.querySelector("#refreshBookings");
 
   bookingsList?.addEventListener("click", (event) => {
-    const button = event.target.closest(".cancel-btn");
-    if (!button) return;
-    handleCancel(button.dataset.bookingId);
+    const cancelBtn = event.target.closest(".cancel-btn");
+    const receiptBtn = event.target.closest(".receipt-btn");
+    const confirmBtn = event.target.closest(".confirm-btn");
+
+    if (cancelBtn) handleCancel(cancelBtn.dataset.bookingId);
+    if (receiptBtn) handleGeneratePDF(receiptBtn.dataset.bookingId, 'receipt');
+    if (confirmBtn) handleGeneratePDF(confirmBtn.dataset.bookingId, 'confirmation');
   });
 
   viewHistoryBtn?.addEventListener("click", loadHistory);
   refreshBookings?.addEventListener("click", loadBookings);
+};
+
+const handleGeneratePDF = async (bookingId, type) => {
+  try {
+    const url = `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8080"}/api/bookings/${bookingId}/${type}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${state.token}`
+      }
+    });
+
+    if (!response.ok) throw new Error(`Failed to generate ${type}`);
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `${type}_${bookingId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(downloadUrl);
+    a.remove();
+  } catch (error) {
+    alert(error.message);
+  }
 };
 
 export const showBookingsPage = () => {
@@ -87,6 +116,10 @@ const renderBookings = (bookings, isHistory = false) => {
               <p class="mb-0 booking-guest">${guestInfo}</p>
               <p class="mb-0" style="color:rgba(0,0,0,0.6)">${action} — ${formatDate(when, { weekday: 'short', month: 'short', day: 'numeric' })} ${formatTime(when)}</p>
             </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
+              <button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>
+            </div>
           </div>
         `;
       }
@@ -98,7 +131,11 @@ const renderBookings = (bookings, isHistory = false) => {
             <p class="mb-0">${formatDate(booking.event.starts_at, { weekday: 'short', month: 'short', day: 'numeric' })} · ${formatTime(booking.event.starts_at)} · ${booking.event.location}</p>
             <p class="mb-0 booking-guest">${guestInfo}</p>
           </div>
-          <button class="btn btn-outline-dark btn-sm cancel-btn" data-booking-id="${booking.id}">Cancel</button>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
+            <button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>
+            <button class="btn btn-outline-dark btn-sm cancel-btn" data-booking-id="${booking.id}">Cancel</button>
+          </div>
         </div>
       `;
     })
@@ -118,8 +155,8 @@ export const loadBookings = async () => {
   }
 
   try {
-      const data = await apiFetch("/api/bookings");
-      renderBookings(data, false);
+    const data = await apiFetch("/api/bookings");
+    renderBookings(data, false);
   } catch (error) {
     bookingsList.innerHTML = `
       <div class="booking-empty">
@@ -151,7 +188,7 @@ const loadHistory = async () => {
 
   try {
     const data = await apiFetch("/api/bookings/history");
-      renderBookings(data, true);
+    renderBookings(data, true);
   } catch (error) {
     if (bookingStatus) bookingStatus.textContent = error.message;
   }

@@ -7,12 +7,14 @@ import json
 import re
 
 import jwt
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, text
 from werkzeug.security import check_password_hash, generate_password_hash
 import uuid
+import io
+from fpdf import FPDF
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
@@ -94,6 +96,7 @@ class Booking(db.Model):
     guest_email = db.Column(db.String(255), nullable=True)
     guest_name = db.Column(db.String(255), nullable=True)
     guest_phone = db.Column(db.String(50), nullable=True)
+    confirmation_code = db.Column(db.String(10), unique=True, nullable=True)
     booked_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     cancelled_at = db.Column(db.DateTime, nullable=True)
 
@@ -154,6 +157,12 @@ def ensure_booking_columns():
             conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_name VARCHAR(255) NULL"))
         if "guest_phone" not in columns:
             conn.execute(text("ALTER TABLE bookings ADD COLUMN guest_phone VARCHAR(50) NULL"))
+        if "confirmation_code" not in columns:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN confirmation_code VARCHAR(10) NULL"))
+            try:
+                conn.execute(text("CREATE UNIQUE INDEX uk_bookings_confirmation_code ON bookings(confirmation_code)"))
+            except Exception:
+                pass
         # Make user_id nullable if it isn't already
         try:
             conn.execute(text("ALTER TABLE bookings MODIFY COLUMN user_id BIGINT UNSIGNED NULL"))
@@ -421,6 +430,7 @@ def booking_to_dict(booking: Booking):
         "guest_email": booking.guest_email,
         "guest_name": booking.guest_name,
         "guest_phone": booking.guest_phone,
+        "confirmation_code": booking.confirmation_code,
         "booked_at": booking.booked_at.isoformat() if booking.booked_at else None,
         "cancelled_at": booking.cancelled_at.isoformat() if booking.cancelled_at else None,
         "event": event_to_dict(booking.event),
@@ -794,6 +804,83 @@ def update_user_preferences(current_user: User):
     })
 
 
+@app.get("/api/bookings/<int:booking_id>/receipt")
+@require_auth
+def generate_receipt(current_user: User, booking_id: int):
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return json_error("Booking not found", 404)
+    if not current_user.is_staff and booking.user_id != current_user.id:
+        return json_error("Unauthorized", 403)
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(190, 10, "RECEIPT", ln=True, align="C")
+    pdf.ln(10)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(190, 10, f"Booking ID: {booking.id}", ln=True)
+    pdf.cell(190, 10, f"Event: {booking.event.title}", ln=True)
+    pdf.cell(190, 10, f"Date: {booking.event.starts_at.strftime('%Y-%m-%d %H:%M')}", ln=True)
+    pdf.cell(190, 10, f"Location: {booking.event.location.name if booking.event.location else 'N/A'}", ln=True)
+    pdf.cell(190, 10, f"Customer: {current_user.first_name} {current_user.last_name}", ln=True)
+    pdf.ln(5)
+    
+    total_price = float(booking.event.price) * booking.guest_count
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(190, 10, f"Total Amount: £{total_price:.2f}", ln=True)
+    pdf.set_font("Arial", "I", 10)
+    pdf.cell(190, 10, "Thank you for your booking with Delapre Abbey!", ln=True)
+
+    buffer = io.BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return Response(
+        buffer,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment;filename=receipt_{booking_id}.pdf"}
+    )
+
+
+@app.get("/api/bookings/<int:booking_id>/confirmation")
+@require_auth
+def generate_confirmation(current_user: User, booking_id: int):
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return json_error("Booking not found", 404)
+    if not current_user.is_staff and booking.user_id != current_user.id:
+        return json_error("Unauthorized", 403)
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(190, 10, "BOOKING CONFIRMATION", ln=True, align="C")
+    pdf.ln(10)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(190, 10, f"Confirmation Code: {booking.confirmation_code or 'N/A'}", ln=True)
+    pdf.cell(190, 10, f"Event: {booking.event.title}", ln=True)
+    pdf.cell(190, 10, f"Attendee: {current_user.first_name} {current_user.last_name}", ln=True)
+    pdf.cell(190, 10, f"Guests: {booking.guest_count}", ln=True)
+    pdf.ln(5)
+    pdf.multi_cell(190, 10, f"Description: {booking.event.description}")
+    pdf.ln(10)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(190, 10, f"Start Time: {booking.event.starts_at.strftime('%Y-%m-%d %H:%M')}", ln=True)
+    pdf.cell(190, 10, f"End Time: {booking.event.ends_at.strftime('%Y-%m-%d %H:%M')}", ln=True)
+    pdf.ln(10)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(190, 10, "Please bring this confirmation with you (digital or printed) to the event. We look forward to seeing you there!")
+
+    buffer = io.BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return Response(
+        buffer,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment;filename=confirmation_{booking_id}.pdf"}
+    )
+
+
 @app.get("/api/bookings")
 @require_auth
 def list_bookings(current_user: User):
@@ -878,6 +965,7 @@ def create_booking(current_user: User):
         status="confirmed",
         guest_count=guest_count,
         guest_names=json.dumps(guest_names) if guest_names else None,
+        confirmation_code=uuid.uuid4().hex[:8].upper()
     )
     db.session.add(booking)
     db.session.commit()
@@ -960,6 +1048,7 @@ def create_guest_booking():
         guest_email=email,
         guest_name=name,
         guest_phone=phone or None,
+        confirmation_code=uuid.uuid4().hex[:8].upper()
     )
     db.session.add(booking)
     db.session.commit()
@@ -1002,6 +1091,71 @@ def cancel_booking(current_user: User, booking_id: int):
     booking.cancelled_at = datetime.utcnow()
     db.session.commit()
     return jsonify(booking_to_dict(booking))
+
+
+@app.get("/api/staff/bookings")
+@require_staff
+def list_all_bookings(current_user: User):
+    bookings = (
+        Booking.query.join(Event)
+        .order_by(Event.starts_at.desc(), Booking.booked_at.desc())
+        .all()
+    )
+    return jsonify([booking_to_dict(booking) for booking in bookings])
+
+
+@app.cli.command("send-reminders")
+def send_reminders():
+    """Generates TXT notification files for events in the next 24 hours."""
+    now = datetime.now()
+    tomorrow = now + timedelta(days=1)
+    
+    # Query pending confirmations in the next 24 hours
+    upcoming_bookings = Booking.query.join(Event).filter(
+        Event.starts_at >= now,
+        Event.starts_at <= tomorrow,
+        Booking.status == 'confirmed'
+    ).all()
+    
+    if not upcoming_bookings:
+        print("No upcoming events in the next 24 hours.")
+        return
+
+    notifications_dir = os.path.join(os.path.dirname(__file__), "notifications")
+    if not os.path.exists(notifications_dir):
+        os.makedirs(notifications_dir)
+
+    for booking in upcoming_bookings:
+        # Determine recipient and opt-in
+        if booking.user:
+            # Respect user preferences
+            if not booking.user.email_opt_in:
+                continue
+            email = booking.user.email
+            name = f"{booking.user.first_name} {booking.user.last_name}"
+        else:
+            # Guest booking
+            email = booking.guest_email
+            name = booking.guest_name or "Guest"
+
+        if not email:
+            continue
+
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        filename = f"notification_{booking.id}_{timestamp}.txt"
+        filepath = os.path.join(notifications_dir, filename)
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(f"Subject: Reminder: {booking.event.title} is coming up soon!\n\n")
+            f.write(f"Hello {name},\n\n")
+            f.write(f"This is a reminder that you have a booking for '{booking.event.title}'.\n")
+            f.write(f"When: {booking.event.starts_at.strftime('%A, %d %B at %H:%M')}\n")
+            f.write(f"Where: {booking.event.location.name if booking.event.location else 'Delapre Abbey'}\n\n")
+            f.write("We look forward to seeing you there!\n\n")
+            f.write("Best regards,\n")
+            f.write("Delapre Abbey Events Team")
+            
+        print(f"Generated notification for {email}: {filename}")
 
 
 if __name__ == "__main__":

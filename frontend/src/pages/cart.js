@@ -1,4 +1,5 @@
 import { state, saveCart, saveGuestInfo } from "../state.js";
+import * as bootstrap from 'bootstrap';
 import { formatDate, formatTime } from "../utils/formatters.js";
 import { apiFetch } from "../utils/api.js";
 import { router } from "../router.js";
@@ -351,6 +352,18 @@ const checkoutCart = async () => {
     renderCart();
     loadBookings();
     loadEvents();
+
+    // Show confirmation modal
+    const modalEl = document.getElementById('confirmationModal');
+    if (modalEl) {
+      document.getElementById('confirmationMessage').textContent = "Your events have been successfully booked. You can view them in your bookings list.";
+      const bootstrapInstance = bootstrap.Modal ? bootstrap : window.bootstrap;
+      if (bootstrapInstance) {
+        const modal = new bootstrapInstance.Modal(modalEl);
+        modal.show();
+      }
+    }
+
     router.navigateTo("bookings");
   } catch (error) {
     if (cartStatus) cartStatus.textContent = error.message;
@@ -410,6 +423,18 @@ const checkoutAsGuest = async () => {
     saveCart();
     renderCart();
     loadEvents();
+
+    // Show confirmation modal
+    const modalEl = document.getElementById('confirmationModal');
+    if (modalEl) {
+      document.getElementById('confirmationMessage').textContent = `Booking confirmed! A confirmation will be sent to ${email}.`;
+      const bootstrapInstance = bootstrap.Modal ? bootstrap : window.bootstrap;
+      if (bootstrapInstance) {
+        const modal = new bootstrapInstance.Modal(modalEl);
+        modal.show();
+      }
+    }
+
     if (cartStatus) {
       cartStatus.textContent = `Booking confirmed! A confirmation will be sent to ${email}.`;
       cartStatus.classList.add("success");

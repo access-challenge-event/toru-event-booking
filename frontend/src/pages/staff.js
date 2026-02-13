@@ -29,17 +29,17 @@ export const renderStaffHTML = () => `
           </div>
         </div>
 
-        <!-- Manage Events Card (Placeholder) -->
+        <!-- Manage Events Card -->
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm action-card" role="button">
+          <div class="card h-100 shadow-sm action-card" role="button" id="btnShowManageBookings">
             <div class="card-body text-center p-5">
-              <div class="mb-3 opacity-50">
+              <div class="mb-3 text-success">
                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-list-check" viewBox="0 0 16 16">
                     <path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM3.854 2.146a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 3.293l1.146-1.147a.5.5 0 0 1 .708 0zm0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 1 1 .708-.708L2 7.293l1.146-1.147a.5.5 0 0 1 .708 0zm0 4a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0l-.5-.5a.5.5 0 0 1 .708-.708l.146.147 1.146-1.147a.5.5 0 0 1 .708 0z"/>
                   </svg>
               </div>
-              <h5 class="card-title">Manage Events</h5>
-              <p class="card-text text-muted">Edit existing events, view attendee lists, and manage cancellations.</p>
+              <h5 class="card-title">Manage Bookings</h5>
+              <p class="card-text text-muted">View attendee lists, verification codes, and manage reservations.</p>
             </div>
           </div>
         </div>
@@ -156,6 +156,37 @@ export const renderStaffHTML = () => `
         </div>
       </div>
     </div>
+
+    <!-- Manage Bookings View -->
+    <div id="staffManageBookingsView" class="d-none">
+       <button class="btn btn-outline-secondary mb-4 back-to-dashboard">
+        &larr; Back to Dashboard
+      </button>
+      <div class="row">
+        <div class="col-12">
+          <div class="card p-4 shadow-sm border-0">
+            <h4 class="mb-4">Attendee Verification</h4>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Verification Code</th>
+                    <th>Event</th>
+                    <th>Attendee</th>
+                    <th>Total Guests</th>
+                    <th>Date Booked</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="allBookingsList">
+                  <!-- Bookings will be loaded here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 `;
 
@@ -169,6 +200,23 @@ export const initStaffPage = () => {
   btnShowAddEvent?.addEventListener("click", () => {
     dashboardView?.classList.add("d-none");
     addEventView?.classList.remove("d-none");
+  });
+
+  const btnShowManageBookings = document.querySelector("#btnShowManageBookings");
+  const manageBookingsView = document.querySelector("#staffManageBookingsView");
+
+  btnShowManageBookings?.addEventListener("click", () => {
+    dashboardView?.classList.add("d-none");
+    manageBookingsView?.classList.remove("d-none");
+    loadAllBookings();
+  });
+
+  document.querySelectorAll(".back-to-dashboard").forEach(btn => {
+    btn.addEventListener("click", () => {
+      addEventView?.classList.add("d-none");
+      manageBookingsView?.classList.add("d-none");
+      dashboardView?.classList.remove("d-none");
+    });
   });
 
   backToDashboardBtn?.addEventListener("click", () => {
@@ -367,6 +415,7 @@ export const showStaffPage = () => {
   // Reset view to dashboard
   document.querySelector("#staffDashboardView")?.classList.remove("d-none");
   document.querySelector("#staffAddEventView")?.classList.add("d-none");
+  document.querySelector("#staffManageBookingsView")?.classList.add("d-none");
 
   // Reset Form for Add Mode
   document.querySelector("#addEventForm")?.reset();
@@ -412,4 +461,50 @@ const loadLocations = async () => {
       }
     }
   } catch (e) { console.error(e); }
+};
+
+const loadAllBookings = async () => {
+  const container = document.querySelector("#allBookingsList");
+  if (!container) return;
+
+  container.innerHTML = '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm text-muted"></div> Loading bookings...</td></tr>';
+
+  try {
+    const token = state.token || localStorage.getItem("token");
+    const res = await fetch(`${apiBaseUrl}/api/staff/bookings`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error("Failed to load bookings");
+    const bookings = await res.json();
+
+    if (bookings.length === 0) {
+      container.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-muted">No bookings found.</td></tr>';
+      return;
+    }
+
+    container.innerHTML = bookings.map(b => `
+      <tr>
+        <td><code class="fw-bold text-primary" style="font-size: 1.1rem;">${b.confirmation_code || 'N/A'}</code></td>
+        <td>
+          <div class="fw-bold">${b.event.title}</div>
+          <div class="small text-muted">${new Date(b.event.starts_at).toLocaleDateString()}</div>
+        </td>
+        <td>
+          <div class="fw-bold">${b.guest_name || (b.user ? `${b.user.first_name} ${b.user.last_name}` : 'N/A')}</div>
+          <div class="small text-muted">${b.guest_email || b.user?.email || ''}</div>
+        </td>
+        <td class="text-center">${b.guest_count}</td>
+        <td class="small text-muted">${new Date(b.booked_at).toLocaleString()}</td>
+        <td>
+          <span class="badge ${b.status === 'confirmed' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} rounded-pill">
+            ${b.status}
+          </span>
+        </td>
+      </tr>
+    `).join("");
+
+  } catch (err) {
+    container.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-danger">Error: ${err.message}</td></tr>`;
+  }
 };
