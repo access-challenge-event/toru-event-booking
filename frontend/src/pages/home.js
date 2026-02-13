@@ -1,5 +1,7 @@
 import { router } from "../router.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
+import { state } from "../state.js";
+import { apiFetch } from "../utils/api.js";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -86,7 +88,7 @@ export const initHomePage = () => {
   // Populate the hero card with the next upcoming event from the API
   const heroReserveBtn = document.querySelector("#heroReserveBtn");
 
-  const populateHero = (event) => {
+  const populateHero = (event, tagOverride = null) => {
     const set = (id, value) => {
       const el = document.getElementById(id);
       if (el) el.textContent = value ?? "";
@@ -107,7 +109,8 @@ export const initHomePage = () => {
       return;
     }
 
-    set("heroTag", (event.category && event.category.name) ? event.category.name : "Next up");
+    const tagValue = tagOverride || ((event.category && event.category.name) ? event.category.name : "Next up");
+    set("heroTag", tagValue);
     set("heroTitle", event.title || "");
     try {
       set("heroDate", `${formatDate(event.starts_at, { weekday: "short", month: "short", day: "numeric" })} · ${formatTime(event.starts_at)}`);
@@ -127,7 +130,67 @@ export const initHomePage = () => {
     }
   };
 
-  const loadNextEvent = async () => {
+  const normalizeValue = (value) => (value || "").toString().trim().toLowerCase();
+
+  const getTopPreference = (counts) => {
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return entries.length ? entries[0][0] : null;
+  };
+
+  const buildPreferences = (bookings) => {
+    const categoryCounts = {};
+    const locationCounts = {};
+
+    bookings.forEach((booking) => {
+      const event = booking?.event;
+      const category = normalizeValue(event?.category?.name);
+      const location = normalizeValue(event?.location);
+
+      if (category) categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+      if (location) locationCounts[location] = (locationCounts[location] || 0) + 1;
+    });
+
+    return {
+      category: getTopPreference(categoryCounts),
+      location: getTopPreference(locationCounts),
+    };
+  };
+
+  const getBookedEventIds = (bookings) => new Set(
+    bookings
+      .map((booking) => booking?.event?.id)
+      .filter((id) => id !== undefined && id !== null)
+  );
+
+  const selectRecommendedEvent = (events, preferences, bookedEventIds) => {
+    const now = new Date();
+    const upcoming = events
+      .map((event) => ({ ...event, starts_at: new Date(event.starts_at) }))
+      .filter((event) => event.starts_at >= now)
+      .sort((a, b) => a.starts_at - b.starts_at);
+
+    let bestEvent = null;
+    let bestScore = 0;
+
+    upcoming.forEach((event) => {
+      if (bookedEventIds?.has(event.id)) return;
+      const category = normalizeValue(event?.category?.name);
+      const location = normalizeValue(event?.location);
+
+      let score = 0;
+      if (preferences.category && category === preferences.category) score += 2;
+      if (preferences.location && location === preferences.location) score += 1;
+
+      if (score > bestScore) {
+        bestEvent = event;
+        bestScore = score;
+      }
+    });
+
+    return bestScore > 0 ? bestEvent : null;
+  };
+
+  const loadHeroEvent = async () => {
     try {
       const resp = await fetch(`${apiBaseUrl}/api/events`);
       if (!resp.ok) throw new Error("Failed to fetch events");
@@ -144,14 +207,41 @@ export const initHomePage = () => {
         .sort((a, b) => a.starts_at - b.starts_at);
 
       const next = upcoming[0] || events[0];
-      populateHero(next);
+      let heroEvent = next;
+      let heroTagOverride = null;
+
+      if (state.token) {
+        try {
+          const [upcomingBookings, history] = await Promise.all([
+            apiFetch("/api/bookings"),
+            apiFetch("/api/bookings/history"),
+          ]);
+          const allBookings = [
+            ...(Array.isArray(upcomingBookings) ? upcomingBookings : []),
+            ...(Array.isArray(history) ? history : []),
+          ];
+          if (allBookings.length > 0) {
+            const preferences = buildPreferences(allBookings);
+            const bookedEventIds = getBookedEventIds(allBookings);
+            const recommended = selectRecommendedEvent(events, preferences, bookedEventIds);
+            if (recommended) {
+              heroEvent = recommended;
+              heroTagOverride = "Recommended for you";
+            }
+          }
+        } catch (error) {
+          console.warn("Hero recommendation fallback:", error);
+        }
+      }
+
+      populateHero(heroEvent, heroTagOverride);
     } catch (err) {
-      console.error("loadNextEvent error:", err);
+      console.error("loadHeroEvent error:", err);
       populateHero(null);
     }
   };
 
-  loadNextEvent();
+  loadHeroEvent();
 };
 
 export const showHomePage = () => {
