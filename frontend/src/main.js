@@ -29,7 +29,7 @@ app.innerHTML = `
           <li class="nav-item"><a class="nav-link" href="${router.href('')}">Home</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('events')}">Events</a></li>
           <li class="nav-item"><a class="nav-link" href="${router.href('bookings')}">Bookings</a></li>
-          <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">Cart <span class="cart-badge" id="cartBadge">0</span></a></li>
+          <li class="nav-item"><a class="nav-link" href="${router.href('cart')}">My Events <span class="cart-badge" id="cartBadge">0</span></a></li>
           <li class="nav-item d-none" id="navStaff"><a class="nav-link" href="${router.href('staff')}">Staff</a></li>
           <li class="nav-item d-none" id="navPrefs"><a class="nav-link" href="${router.href('preferences')}">Preferences</a></li>
         </ul>
