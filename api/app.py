@@ -244,7 +244,6 @@ def ensure_event_columns():
                         """
                 )
         )
-
         result = conn.execute(
             text(
                 """
@@ -256,47 +255,32 @@ def ensure_event_columns():
             {"schema_name": db_name},
         )
         columns = {row[0] for row in result}
+
+        # category_id
         if "category_id" not in columns:
-            conn.execute(
-                text(
-                    "ALTER TABLE events ADD COLUMN category_id BIGINT UNSIGNED NULL"
-                )
-            )
-            # add index and foreign key if needed
+            conn.execute(text("ALTER TABLE events ADD COLUMN category_id BIGINT UNSIGNED NULL"))
             try:
                 conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL"))
             except Exception:
-                # ignore if constraint already exists or DB doesn't support it here
                 pass
+
+        # location_id
         if "location_id" not in columns:
-            conn.execute(
-                text(
-                    "ALTER TABLE events ADD COLUMN location_id BIGINT UNSIGNED NULL"
-                )
-            )
+            conn.execute(text("ALTER TABLE events ADD COLUMN location_id BIGINT UNSIGNED NULL"))
             try:
                 conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL"))
             except Exception:
                 pass
 
+        # group_id and index
         if "group_id" not in columns:
             conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
-            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
+            try:
+                conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
+            except Exception:
+                pass
 
-        if "recurrence_type" not in columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
-
-        if "group_id" not in columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
-            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
-
-        if "recurrence_type" not in columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
-
-        if "group_id" not in columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
-            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
-
+        # recurrence_type
         if "recurrence_type" not in columns:
             conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
 
@@ -366,6 +350,29 @@ def require_auth(handler):
         user = db.session.get(User, int(payload["sub"]))
         if not user:
             return json_error("User not found", 401)
+        return handler(user, *args, **kwargs)
+
+    return wrapper
+
+
+def require_staff(handler):
+    @wraps(handler)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return json_error("Missing or invalid token", 401)
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return json_error("Token expired", 401)
+        except jwt.InvalidTokenError:
+            return json_error("Invalid token", 401)
+        user = db.session.get(User, int(payload["sub"]))
+        if not user:
+            return json_error("User not found", 401)
+        if not getattr(user, "is_staff", False):
+            return json_error("Forbidden", 403)
         return handler(user, *args, **kwargs)
 
     return wrapper
@@ -586,57 +593,6 @@ def create_event(current_user: User):
         db.session.add(event)
         events_created.append(event)
 
-    db.session.commit()
-    
-    # Return the first event created
-    return jsonify(event_to_dict(events_created[0])), 201
-
-
-@app.route("/api/events/<int:event_id>", methods=["PUT"])
-@require_staff
-def update_event(event_id):
-    event = Event.query.get(event_id)
-    if not event:
-        return json_error("Event not found", 404)
-
-    payload = request.get_json(silent=True) or {}
-    
-    # Update fields if provided
-    if "title" in payload:
-        event.title = payload["title"].strip()
-    if "description" in payload:
-        event.description = payload["description"].strip()
-    if "location" in payload:
-        event.location = payload["location"].strip()
-    if "starts_at" in payload:
-        try:
-            event.starts_at = datetime.fromisoformat(payload["starts_at"])
-        except ValueError:
-            return json_error("Invalid start date", 400)
-    if "ends_at" in payload:
-        try:
-            event.ends_at = datetime.fromisoformat(payload["ends_at"])
-        except ValueError:
-            return json_error("Invalid end date", 400)
-    if "price" in payload:
-        try:
-            event.price = float(payload["price"])
-        except ValueError:
-            return json_error("Invalid price", 400)
-    if "capacity" in payload:
-        try:
-            event.capacity = int(payload["capacity"])
-        except ValueError:
-            return json_error("Invalid capacity", 400)
-    if "is_free" in payload:
-        event.is_free = bool(payload["is_free"])
-    if "category_id" in payload:
-        try:
-            event.category_id = int(payload["category_id"])
-        except (ValueError, TypeError):
-            pass # Ignore invalid category id type if weird
-
-    db.session.commit()
     db.session.commit()
     
     # Return the first event created
