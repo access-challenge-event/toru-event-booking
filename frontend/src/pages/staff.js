@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { Html5Qrcode } from "html5-qrcode";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
@@ -166,6 +167,26 @@ export const renderStaffHTML = () => `
         <div class="col-12">
           <div class="card p-4 shadow-sm border-0">
             <h4 class="mb-4">Attendee Verification</h4>
+            <div class="checkin-panel mb-4">
+              <div>
+                <p class="mb-2 fw-semibold">Scan confirmation code</p>
+                <div id="checkinStatus" class="status-line"></div>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-dark btn-sm" id="startScannerBtn">Start scanner</button>
+                  <button class="btn btn-outline-dark btn-sm" id="stopScannerBtn" disabled>Stop scanner</button>
+                </div>
+              </div>
+              <div>
+                <div id="scannerRegion" class="scanner-region"></div>
+              </div>
+              <div class="checkin-manual">
+                <label class="form-label small text-muted" for="checkinCodeInput">Manual code entry</label>
+                <div class="d-flex gap-2">
+                  <input type="text" class="form-control" id="checkinCodeInput" placeholder="Enter confirmation code" />
+                  <button class="btn btn-outline-dark" id="manualCheckinBtn">Check in</button>
+                </div>
+              </div>
+            </div>
             <div class="table-responsive">
               <table class="table table-hover align-middle">
                 <thead class="table-light">
@@ -175,6 +196,7 @@ export const renderStaffHTML = () => `
                     <th>Attendee</th>
                     <th>Total Guests</th>
                     <th>Date Booked</th>
+                    <th>Check-in</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -216,7 +238,27 @@ export const initStaffPage = () => {
       addEventView?.classList.add("d-none");
       manageBookingsView?.classList.add("d-none");
       dashboardView?.classList.remove("d-none");
+      stopScanner();
     });
+  });
+
+  const startScannerBtn = document.querySelector("#startScannerBtn");
+  const stopScannerBtn = document.querySelector("#stopScannerBtn");
+  const manualCheckinBtn = document.querySelector("#manualCheckinBtn");
+
+  startScannerBtn?.addEventListener("click", () => {
+    startScanner();
+  });
+
+  stopScannerBtn?.addEventListener("click", () => {
+    stopScanner();
+  });
+
+  manualCheckinBtn?.addEventListener("click", () => {
+    const input = document.querySelector("#checkinCodeInput");
+    const code = (input?.value || "").trim();
+    if (!code) return;
+    handleCheckin(code);
   });
 
   backToDashboardBtn?.addEventListener("click", () => {
@@ -467,7 +509,7 @@ const loadAllBookings = async () => {
   const container = document.querySelector("#allBookingsList");
   if (!container) return;
 
-  container.innerHTML = '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border spinner-border-sm text-muted"></div> Loading bookings...</td></tr>';
+  container.innerHTML = '<tr><td colspan="7" class="text-center p-4"><div class="spinner-border spinner-border-sm text-muted"></div> Loading bookings...</td></tr>';
 
   try {
     const token = state.token || localStorage.getItem("token");
@@ -479,11 +521,31 @@ const loadAllBookings = async () => {
     const bookings = await res.json();
 
     if (bookings.length === 0) {
-      container.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-muted">No bookings found.</td></tr>';
+      container.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-muted">No bookings found.</td></tr>';
       return;
     }
 
-    container.innerHTML = bookings.map(b => `
+    const formatGuestNames = (guestNames, fallbackName) => {
+      if (Array.isArray(guestNames) && guestNames.length) {
+        return guestNames
+          .map((guest) => {
+            if (!guest) return "";
+            if (typeof guest === "string") return guest;
+            const name = guest.name || "";
+            const type = guest.type ? ` (${guest.type})` : "";
+            return `${name}${type}`.trim();
+          })
+          .filter(Boolean)
+          .join(", ");
+      }
+      return fallbackName || "N/A";
+    };
+
+    container.innerHTML = bookings.map(b => {
+      const fallbackName = b.guest_name || (b.user ? `${b.user.first_name} ${b.user.last_name}` : "N/A");
+      const guestList = formatGuestNames(b.guest_names, fallbackName);
+
+      return `
       <tr>
         <td><code class="fw-bold text-primary" style="font-size: 1.1rem;">${b.confirmation_code || 'N/A'}</code></td>
         <td>
@@ -491,20 +553,112 @@ const loadAllBookings = async () => {
           <div class="small text-muted">${new Date(b.event.starts_at).toLocaleDateString()}</div>
         </td>
         <td>
-          <div class="fw-bold">${b.guest_name || (b.user ? `${b.user.first_name} ${b.user.last_name}` : 'N/A')}</div>
+          <div class="fw-bold">${guestList}</div>
           <div class="small text-muted">${b.guest_email || b.user?.email || ''}</div>
         </td>
         <td class="text-center">${b.guest_count}</td>
         <td class="small text-muted">${new Date(b.booked_at).toLocaleString()}</td>
+        <td>
+          <span class="badge ${b.checked_in ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'} rounded-pill">
+            ${b.checked_in ? 'Checked in' : 'Not checked in'}
+          </span>
+        </td>
         <td>
           <span class="badge ${b.status === 'confirmed' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} rounded-pill">
             ${b.status}
           </span>
         </td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
   } catch (err) {
-    container.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-danger">Error: ${err.message}</td></tr>`;
+    container.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-danger">Error: ${err.message}</td></tr>`;
+  }
+};
+
+let scannerInstance = null;
+let scannerActive = false;
+
+const setCheckinStatus = (message, tone = "muted") => {
+  const status = document.querySelector("#checkinStatus");
+  if (!status) return;
+  status.textContent = message || "";
+  status.classList.remove("text-success", "text-danger", "text-muted");
+  if (tone === "success") status.classList.add("text-success");
+  if (tone === "error") status.classList.add("text-danger");
+  if (tone === "muted") status.classList.add("text-muted");
+};
+
+const handleCheckin = async (rawCode) => {
+  const code = (rawCode || "").trim().toUpperCase();
+  if (!code) return;
+  setCheckinStatus("Checking in...", "muted");
+
+  try {
+    const token = state.token || localStorage.getItem("token");
+    const res = await fetch(`${apiBaseUrl}/api/staff/checkin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ confirmation_code: code }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Check-in failed");
+
+    setCheckinStatus(`Checked in: ${code}`, "success");
+    loadAllBookings();
+  } catch (err) {
+    setCheckinStatus(err.message, "error");
+  }
+};
+
+const startScanner = async () => {
+  if (scannerActive) return;
+  const region = document.querySelector("#scannerRegion");
+  if (!region) return;
+
+  try {
+    scannerInstance = new Html5Qrcode("scannerRegion");
+    scannerActive = true;
+    document.querySelector("#startScannerBtn")?.setAttribute("disabled", "true");
+    document.querySelector("#stopScannerBtn")?.removeAttribute("disabled");
+    setCheckinStatus("Scanner ready. Point the camera at the code.", "muted");
+
+    await scannerInstance.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => {
+        if (!decodedText) return;
+        handleCheckin(decodedText);
+        stopScanner();
+      }
+    );
+  } catch (err) {
+    scannerActive = false;
+    scannerInstance = null;
+    document.querySelector("#startScannerBtn")?.removeAttribute("disabled");
+    document.querySelector("#stopScannerBtn")?.setAttribute("disabled", "true");
+    setCheckinStatus("Unable to start camera scanner.", "error");
+  }
+};
+
+const stopScanner = async () => {
+  if (!scannerInstance) return;
+  try {
+    if (scannerInstance.getState && scannerInstance.getState() === 2) {
+      await scannerInstance.stop();
+    }
+    await scannerInstance.clear();
+  } catch (err) {
+    // ignore stop errors
+  } finally {
+    scannerInstance = null;
+    scannerActive = false;
+    document.querySelector("#startScannerBtn")?.removeAttribute("disabled");
+    document.querySelector("#stopScannerBtn")?.setAttribute("disabled", "true");
   }
 };
