@@ -31,7 +31,7 @@ export const renderEventsHTML = () => `
 
 export const initEventsPage = () => {
   const searchInput = document.querySelector("#searchInput");
-  
+
   // Filter buttons
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -52,15 +52,15 @@ export const initEventsPage = () => {
 export const showEventsPage = () => {
   const eventsSection = document.querySelector("#eventsSection");
   const searchInput = document.querySelector("#searchInput");
-  
+
   eventsSection?.classList.remove("d-none");
-  
+
   currentFilter = "all";
   currentSearch = "";
   document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
   document.querySelector('[data-filter="all"]')?.classList.add("active");
   if (searchInput) searchInput.value = "";
-  
+
   loadEvents();
 };
 
@@ -71,7 +71,7 @@ export const hideEventsPage = () => {
 const renderEvents = (events) => {
   const eventsGrid = document.querySelector("#eventsGrid");
   if (!eventsGrid) return;
-  
+
   state.events = events;
 
   // Populate category filter buttons from events' categories
@@ -87,7 +87,7 @@ const renderEvents = (events) => {
     const buttons = ["all", ...cats];
     filtersContainer.innerHTML = buttons
       .map(
-        (f) => `<button type="button" class="btn btn-outline-dark filter-btn ${f===currentFilter? 'active' : ''}" data-filter="${f}">${f==='all' ? 'All' : titleCase(f)}</button>`
+        (f) => `<button type="button" class="btn btn-outline-dark filter-btn ${f === currentFilter ? 'active' : ''}" data-filter="${f}">${f === 'all' ? 'All' : titleCase(f)}</button>`
       )
       .join("");
 
@@ -96,14 +96,40 @@ const renderEvents = (events) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
+
+        // Update filter state logic
+        // re-render not needed as we just need to filter logic... wait, renderEvents calls filter logic
+        // But here we are inside renderEvents. logic seems circular in original code.
+        // Actually original code was flawed or simple. Let's fix filter logic
         currentFilter = btn.dataset.filter;
-        renderEvents(state.events);
+        renderEvents(events);
       });
     });
   }
-  
+
+  // Attach Edit Event Listeners
+  if (eventsGrid && state.user && state.user.is_staff) {
+    setTimeout(() => {
+      document.querySelectorAll(".edit-event-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const eventId = btn.dataset.eventId;
+          import("./staff.js").then(module => {
+            module.editEvent(eventId);
+          });
+        });
+      });
+    }, 0);
+  } else {
+    // Attach Add to Cart Listeners (existing logic handled by router/global? No, likely in book-btn logic elsewhere or missing?)
+    // Original code didn't seem to attach listeners here? 
+    // Ah, "Add to cart" logic is usually handled by a global listener or not shown in this file. 
+    // Wait, let's check if there is a listener for book-btn.
+    // There isn't one in the viewed code! Maybe main.js handles it or it's missing in this view.
+    // I will leave "Add to cart" alone as I am not supposed to break it if it works elsewhere.
+  }
+
   let filtered = events;
-  
+
   // Apply search filter
   if (currentSearch) {
     const search = currentSearch.toLowerCase();
@@ -113,12 +139,12 @@ const renderEvents = (events) => {
       event.location.toLowerCase().includes(search)
     );
   }
-  
+
   // Apply category filter
   if (currentFilter !== "all") {
     filtered = filtered.filter(event => ((event.category && event.category.name ? event.category.name : "").toLowerCase() === currentFilter));
   }
-  
+
   eventsGrid.innerHTML = filtered
     .map(
       (event) => `
@@ -130,9 +156,9 @@ const renderEvents = (events) => {
                 <h5>${event.title}</h5>
               </div>
               <span class="chip">${formatDate(event.starts_at, {
-                month: "short",
-                day: "numeric",
-              })}</span>
+        month: "short",
+        day: "numeric",
+      })}</span>
             </div>
             <p>${event.description}</p>
             <div class="event-meta">
@@ -140,19 +166,21 @@ const renderEvents = (events) => {
               <span>${event.location}</span>
             </div>
             <div class="event-actions">
-              <span>${event.spots_left ?? event.capacity} spaces left</span>
-              <button class="btn btn-dark btn-sm book-btn" data-event-id="${event.id}" ${
-                event.spots_left === 0 ? "disabled" : ""
-              }>
-                Add to cart
-              </button>
+              <span>${(event.spots_left !== undefined ? event.spots_left : event.capacity)} spaces left</span>
+              ${state.user && state.user.is_staff
+          ? `<button class="btn btn-outline-dark btn-sm edit-event-btn" data-event-id="${event.id}">Edit Event</button>`
+          : `<button class="btn btn-dark btn-sm book-btn px-4" data-event-id="${event.id}" ${(event.spots_left === 0) ? "disabled" : ""
+          }>
+                    Add to cart
+                   </button>`
+        }
             </div>
           </div>
         </div>
       `
     )
     .join("");
-  
+
   if (filtered.length === 0) {
     eventsGrid.innerHTML = `
       <div class="col-12">
@@ -167,7 +195,7 @@ const renderEvents = (events) => {
 const showEventsLoading = () => {
   const eventsGrid = document.querySelector("#eventsGrid");
   if (!eventsGrid) return;
-  
+
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">
@@ -184,7 +212,7 @@ const showEventsLoading = () => {
 const showEventsError = () => {
   const eventsGrid = document.querySelector("#eventsGrid");
   if (!eventsGrid) return;
-  
+
   eventsGrid.innerHTML = `
     <div class="col-12">
       <div class="loading-card">

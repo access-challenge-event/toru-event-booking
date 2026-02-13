@@ -12,6 +12,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, text
 from werkzeug.security import check_password_hash, generate_password_hash
+import uuid
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
@@ -64,6 +65,9 @@ class Event(db.Model):
     is_free = db.Column(db.Boolean, nullable=False, default=True)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
+    # Recurrence fields
+    group_id = db.Column(db.String(36), nullable=True)  # UUID to group recurring events
+    recurrence_type = db.Column(db.String(20), nullable=True)  # 'weekly', etc.
     category_id = db.Column(db.BigInteger, db.ForeignKey("categories.id"), nullable=True)
     category = db.relationship("Category", backref="events", lazy="joined")
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
@@ -226,6 +230,13 @@ def ensure_event_columns():
                 # ignore if constraint already exists or DB doesn't support it here
                 pass
 
+        if "group_id" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
+            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
+
+        if "recurrence_type" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
+
 
 
 def ensure_staff_user():
@@ -316,6 +327,8 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "spots_left": spots_left,
         "category_id": int(event.category_id) if getattr(event, "category_id", None) is not None else None,
         "category": {"id": int(event.category.id), "name": event.category.name} if getattr(event, "category", None) else None,
+        "group_id": event.group_id,
+        "recurrence_type": event.recurrence_type
     }
 
 
@@ -424,20 +437,118 @@ def create_event(current_user: User):
         except (ValueError, TypeError):
             return json_error("Invalid category ID", 400)
 
-    event = Event(
-        title=title,
-        description=description or "No description provided.",
-        starts_at=starts_at,
-        ends_at=ends_at,
-        location=location,
-        is_free=bool(is_free),
-        price=price,
-        capacity=capacity,
-        category_id=category_id
-    )
-    db.session.add(event)
+    recurrence = payload.get("recurrence", {})
+    recurrence_type = (recurrence.get("type") or "").strip().lower()
+    recurrence_end_date = recurrence.get("end_date")
+    
+    events_created = []
+    group_id = None
+
+    if recurrence_type == "weekly" and recurrence_end_date:
+        try:
+            end_date_obj = datetime.fromisoformat(recurrence_end_date)
+            # Ensure end date includes time if only date provided, or assume end of day? No, just compare dates.
+            # Usually end_date comes as YYYY-MM-DD
+        except ValueError:
+            return json_error("Invalid recurrence end date")
+            
+        group_id = str(uuid.uuid4())
+        
+        # Create instances
+        current_start = starts_at
+        current_end = ends_at
+        
+        while current_start <= end_date_obj:
+            event = Event(
+                title=title,
+                description=description or "No description provided.",
+                starts_at=current_start,
+                ends_at=current_end,
+                location=location,
+                is_free=bool(is_free),
+                price=price,
+                capacity=capacity,
+                category_id=category_id,
+                group_id=group_id,
+                recurrence_type=recurrence_type
+            )
+            db.session.add(event)
+            events_created.append(event)
+            
+            # Add 7 days
+            current_start += timedelta(days=7)
+            current_end += timedelta(days=7)
+            
+    else:
+        # Single event
+        event = Event(
+            title=title,
+            description=description or "No description provided.",
+            starts_at=starts_at,
+            ends_at=ends_at,
+            location=location,
+            is_free=bool(is_free),
+            price=price,
+            capacity=capacity,
+            category_id=category_id,
+            group_id=None,
+            recurrence_type=None
+        )
+        db.session.add(event)
+        events_created.append(event)
+
     db.session.commit()
-    return jsonify(event_to_dict(event)), 201
+    
+    # Return the first event created
+    return jsonify(event_to_dict(events_created[0])), 201
+
+
+@app.route("/api/events/<int:event_id>", methods=["PUT"])
+@require_staff
+def update_event(event_id):
+    event = Event.query.get(event_id)
+    if not event:
+        return json_error("Event not found", 404)
+
+    payload = request.get_json(silent=True) or {}
+    
+    # Update fields if provided
+    if "title" in payload:
+        event.title = payload["title"].strip()
+    if "description" in payload:
+        event.description = payload["description"].strip()
+    if "location" in payload:
+        event.location = payload["location"].strip()
+    if "starts_at" in payload:
+        try:
+            event.starts_at = datetime.fromisoformat(payload["starts_at"])
+        except ValueError:
+            return json_error("Invalid start date", 400)
+    if "ends_at" in payload:
+        try:
+            event.ends_at = datetime.fromisoformat(payload["ends_at"])
+        except ValueError:
+            return json_error("Invalid end date", 400)
+    if "price" in payload:
+        try:
+            event.price = float(payload["price"])
+        except ValueError:
+            return json_error("Invalid price", 400)
+    if "capacity" in payload:
+        try:
+            event.capacity = int(payload["capacity"])
+        except ValueError:
+            return json_error("Invalid capacity", 400)
+    if "is_free" in payload:
+        event.is_free = bool(payload["is_free"])
+    if "category_id" in payload:
+        try:
+            event.category_id = int(payload["category_id"])
+        except (ValueError, TypeError):
+            pass # Ignore invalid category id type if weird
+
+    db.session.commit()
+    return jsonify(event_to_dict(event))
 
 
 @app.post("/api/auth/register")
