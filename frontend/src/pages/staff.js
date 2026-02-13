@@ -408,7 +408,7 @@ const loadLocations = async () => {
       const select = document.querySelector("#eventLocation");
       if (select) {
         select.innerHTML = '<option value="" selected disabled>Select location...</option>' +
-          locs.map(l => `<option value="${l}">${l}</option>`).join("");
+          locs.map(l => `<option value="${l.id}">${l.name}</option>`).join("");
       }
     }
   } catch (e) { console.error(e); }
