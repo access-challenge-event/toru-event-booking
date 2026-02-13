@@ -194,9 +194,9 @@ export const initStaffPage = () => {
 
         try {
             const data = {
-                category_id: document.querySelector("#eventCategory").value,
-                title: document.querySelector("#eventTitle").value,
-                location: document.querySelector("#eventLocation").value,
+              category_id: document.querySelector("#eventCategory").value,
+              title: document.querySelector("#eventTitle").value,
+              location_id: document.querySelector("#eventLocation").value,
                 starts_at: `${document.querySelector("#eventStartDate").value}T${document.querySelector("#eventStartTime").value}`,
                 ends_at: `${document.querySelector("#eventEndDate").value}T${document.querySelector("#eventEndTime").value}`,
                 capacity: document.querySelector("#eventCapacity").value,
@@ -272,8 +272,8 @@ const loadLocations = async () => {
             const locs = await res.json();
             const select = document.querySelector("#eventLocation");
             if (select) {
-                select.innerHTML = '<option value="" selected disabled>Select location...</option>' +
-                    locs.map(l => `<option value="${l}">${l}</option>`).join("");
+              select.innerHTML = '<option value="" selected disabled>Select location...</option>' +
+                locs.map(l => `<option value="${l.id}">${l.name}</option>`).join("");
             }
         }
     } catch (e) { console.error(e); }

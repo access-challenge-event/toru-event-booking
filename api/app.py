@@ -63,7 +63,8 @@ class Event(db.Model):
     description = db.Column(db.Text, nullable=False)
     starts_at = db.Column(db.DateTime, nullable=False)
     ends_at = db.Column(db.DateTime, nullable=False)
-    location = db.Column(db.String(255), nullable=False)
+    location_id = db.Column(db.BigInteger, db.ForeignKey("locations.id"), nullable=True)
+    location = db.relationship("Location", backref="events", lazy="joined")
     is_free = db.Column(db.Boolean, nullable=False, default=True)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
@@ -101,6 +102,19 @@ class Category(db.Model):
 
     id = db.Column(db.BigInteger, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class Location(db.Model):
+    __tablename__ = "locations"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -211,6 +225,22 @@ def ensure_event_columns():
             )
         )
 
+        # ensure locations table exists
+        conn.execute(
+                text(
+                        """
+                        CREATE TABLE IF NOT EXISTS locations (
+                            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                            name VARCHAR(255) NOT NULL,
+                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (id),
+                            UNIQUE KEY uk_locations_name (name)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                        """
+                )
+        )
+
         result = conn.execute(
             text(
                 """
@@ -233,6 +263,16 @@ def ensure_event_columns():
                 conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_category FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL"))
             except Exception:
                 # ignore if constraint already exists or DB doesn't support it here
+                pass
+        if "location_id" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE events ADD COLUMN location_id BIGINT UNSIGNED NULL"
+                )
+            )
+            try:
+                conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL"))
+            except Exception:
                 pass
 
 
@@ -321,7 +361,8 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "description": event.description,
         "starts_at": event.starts_at.isoformat(),
         "ends_at": event.ends_at.isoformat(),
-        "location": event.location,
+        "location_id": int(event.location_id) if getattr(event, "location_id", None) is not None else None,
+        "location": event.location.name if getattr(event, "location", None) else None,
         "is_free": bool(event.is_free),
         "price": float(event.price) if event.price else 0.00,
         "capacity": event.capacity,
@@ -388,9 +429,8 @@ def list_categories():
 
 @app.get("/api/locations")
 def list_locations():
-    # Fetch distinct locations from existing events
-    locations = db.session.query(Event.location).distinct().order_by(Event.location.asc()).all()
-    return jsonify([loc[0] for loc in locations if loc[0]])
+    locations = Location.query.order_by(Location.name.asc()).all()
+    return jsonify([{"id": l.id, "name": l.name} for l in locations])
 
 
 @app.post("/api/events")
@@ -401,15 +441,37 @@ def create_event(current_user: User):
     
     title = (payload.get("title") or "").strip()
     description = (payload.get("description") or "").strip()
+    # location can be provided as a string (legacy) or a location_id (preferred)
     location = (payload.get("location") or "").strip()
+    location_id = payload.get("location_id")
     try:
         starts_at = datetime.fromisoformat(payload.get("starts_at", ""))
         ends_at = datetime.fromisoformat(payload.get("ends_at", ""))
     except ValueError:
         return json_error("Invalid date format")
 
-    if not title or not location or not starts_at or not ends_at:
-        return json_error("Title, location, start time, and end time are required")
+    if not title or not starts_at or not ends_at:
+        return json_error("Title, start time, and end time are required")
+
+    # Resolve location_id if not provided but location string is
+    if not location_id and location:
+        # find or create location by name
+        loc = Location.query.filter(func.lower(Location.name) == location.lower()).first()
+        if not loc:
+            loc = Location(name=location)
+            db.session.add(loc)
+            db.session.commit()
+        location_id = loc.id
+
+    if not location_id:
+        return json_error("Location is required")
+
+    try:
+        location_id = int(location_id)
+        if not db.session.get(Location, location_id):
+            return json_error("Invalid location id", 400)
+    except (ValueError, TypeError):
+        return json_error("Invalid location id", 400)
 
     capacity = payload.get("capacity", 0)
     try:
@@ -441,7 +503,7 @@ def create_event(current_user: User):
         description=description or "No description provided.",
         starts_at=starts_at,
         ends_at=ends_at,
-        location=location,
+        location_id=location_id,
         is_free=bool(is_free),
         price=price,
         capacity=capacity,
