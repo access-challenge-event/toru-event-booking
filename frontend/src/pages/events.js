@@ -1,3 +1,6 @@
+
+import "bootstrap/dist/css/bootstrap.min.css";
+import * as bootstrap from "bootstrap";
 import { state } from "../state.js";
 import { formatDate, formatTime } from "../utils/formatters.js";
 
@@ -5,11 +8,101 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 let currentFilter = "all";
 let currentSearch = "";
+let currentWaitlistEventId = null;
 
 const titleCase = (s) =>
   s.replace(/\w\S*/g, (txt) =>
     txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
   );
+
+/* ===============================
+   WAITLIST MODAL CREATION
+   =============================== */
+
+const createWaitlistModal = () => {
+  if (document.getElementById("waitlistModal")) return;
+
+  const modalHTML = `
+  <div class="modal fade" id="waitlistModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Join Waitlist</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>This event is currently full. Enter how many spaces you'd like:</p>
+          <input type="number" min="1" value="1" class="form-control" id="waitlistSpotsInput">
+          <div id="waitlistError" class="text-danger mt-2 d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-dark" id="confirmWaitlistBtn">
+            Join Waitlist
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  `;
+
+  document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+  document
+    .getElementById("confirmWaitlistBtn")
+    .addEventListener("click", handleWaitlistSubmit);
+};
+
+const handleWaitlistSubmit = async () => {
+  const input = document.getElementById("waitlistSpotsInput");
+  const errorDiv = document.getElementById("waitlistError");
+
+  const requested = parseInt(input.value);
+
+  if (!requested || requested < 1) {
+    errorDiv.textContent = "Please enter a valid number.";
+    errorDiv.classList.remove("d-none");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${apiBaseUrl}/api/events/${currentWaitlistEventId}/waitlist`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({ requested_spots: requested }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to join waitlist");
+    }
+
+    const modalEl = document.getElementById("waitlistModal");
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+
+    setTimeout(() => {
+      loadEvents();
+    }, 500);
+
+  } catch (err) {
+    errorDiv.textContent = err.message;
+    errorDiv.classList.remove("d-none");
+  }
+};
+
+/* ===============================
+   MAIN EVENTS PAGE
+   =============================== */
 
 export const renderEventsHTML = () => `
   <section id="eventsSection" class="container section-gap d-none">
@@ -31,18 +124,9 @@ export const renderEventsHTML = () => `
 `;
 
 export const initEventsPage = () => {
-  const searchInput = document.querySelector("#searchInput");
+  createWaitlistModal();
 
-  document.querySelectorAll(".filter-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".filter-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentFilter = btn.dataset.filter;
-      renderEvents(state.events);
-    });
-  });
+  const searchInput = document.querySelector("#searchInput");
 
   searchInput?.addEventListener("input", (e) => {
     currentSearch = e.target.value;
@@ -51,19 +135,9 @@ export const initEventsPage = () => {
 };
 
 export const showEventsPage = () => {
-  const eventsSection = document.querySelector("#eventsSection");
-  const searchInput = document.querySelector("#searchInput");
-
-  eventsSection?.classList.remove("d-none");
-
+  document.querySelector("#eventsSection")?.classList.remove("d-none");
   currentFilter = "all";
   currentSearch = "";
-  document
-    .querySelectorAll(".filter-btn")
-    .forEach((btn) => btn.classList.remove("active"));
-  document.querySelector('[data-filter="all"]')?.classList.add("active");
-  if (searchInput) searchInput.value = "";
-
   loadEvents();
 };
 
@@ -77,45 +151,6 @@ const renderEvents = (events) => {
 
   state.events = events;
 
-  const filtersContainer = document.querySelector("#categoryFilters");
-  if (filtersContainer) {
-    const cats = Array.from(
-      new Set(
-        events
-          .map((e) =>
-            e.category && e.category.name
-              ? e.category.name.toLowerCase()
-              : null
-          )
-          .filter(Boolean)
-      )
-    );
-
-    const buttons = ["all", ...cats];
-
-    filtersContainer.innerHTML = buttons
-      .map(
-        (f) =>
-          `<button type="button" class="btn btn-outline-dark filter-btn ${
-            f === currentFilter ? "active" : ""
-          }" data-filter="${f}">
-            ${f === "all" ? "All" : titleCase(f)}
-          </button>`
-      )
-      .join("");
-
-    filtersContainer.querySelectorAll(".filter-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document
-          .querySelectorAll(".filter-btn")
-          .forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        currentFilter = btn.dataset.filter;
-        renderEvents(events);
-      });
-    });
-  }
-
   let filtered = events;
 
   if (currentSearch) {
@@ -125,17 +160,6 @@ const renderEvents = (events) => {
         event.title.toLowerCase().includes(search) ||
         event.description.toLowerCase().includes(search) ||
         event.location.toLowerCase().includes(search)
-    );
-  }
-
-  if (currentFilter !== "all") {
-    filtered = filtered.filter(
-      (event) =>
-        (
-          event.category && event.category.name
-            ? event.category.name
-            : ""
-        ).toLowerCase() === currentFilter
     );
   }
 
@@ -169,10 +193,14 @@ const renderEvents = (events) => {
               } spaces left</span>
               ${
                 state.user && state.user.is_staff
-                  ? `<button class="btn btn-outline-dark btn-sm edit-event-btn" data-event-id="${event.id}">Edit Event</button>`
+                  ? `<button class="btn btn-outline-dark btn-sm edit-event-btn">Edit Event</button>`
                   : event.spots_left === 0
-                  ? `<button class="btn btn-outline-secondary btn-sm waitlist-btn px-4" data-event-id="${event.id}">Join Waitlist</button>`
-                  : `<button class="btn btn-dark btn-sm book-btn px-4" data-event-id="${event.id}">Add to cart</button>`
+                  ? `<button class="btn btn-outline-secondary btn-sm waitlist-btn px-4" data-event-id="${event.id}">
+                      Join Waitlist
+                    </button>`
+                  : `<button class="btn btn-dark btn-sm book-btn px-4">
+                      Add to cart
+                    </button>`
               }
             </div>
           </div>
@@ -181,77 +209,27 @@ const renderEvents = (events) => {
     )
     .join("");
 
-  /* ===============================
-     WAITLIST LISTENER + AUTO REFRESH
-     =============================== */
-
+  // Attach waitlist click listeners
   document.querySelectorAll(".waitlist-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       if (!state.user || !state.token) {
         alert("You must be logged in to join the waitlist.");
         return;
       }
 
-      const eventId = btn.dataset.eventId;
-      const requested = prompt(
-        "How many spaces would you like to wait for?",
-        "1"
-      );
+      currentWaitlistEventId = btn.dataset.eventId;
 
-      if (!requested || isNaN(requested) || parseInt(requested) < 1) {
-        return;
-      }
+      // Reset modal input and error
+      const modalInput = document.getElementById("waitlistSpotsInput");
+      const modalError = document.getElementById("waitlistError");
+      if (modalInput) modalInput.value = 1;
+      if (modalError) modalError.classList.add("d-none");
 
-      try {
-        btn.disabled = true;
-        btn.innerText = "Joining...";
-
-        const response = await fetch(
-          `${apiBaseUrl}/api/events/${eventId}/waitlist`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${state.token}`,
-            },
-            body: JSON.stringify({
-              requested_spots: parseInt(requested),
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to join waitlist");
-        }
-
-        btn.innerText = "Joined Waitlist";
-        btn.classList.remove("btn-outline-secondary");
-        btn.classList.add("btn-success");
-
-        // 🔄 Auto refresh events after short delay
-        setTimeout(() => {
-          loadEvents();
-        }, 1500);
-
-      } catch (err) {
-        btn.disabled = false;
-        btn.innerText = "Join Waitlist";
-        alert(err.message || "Something went wrong.");
-      }
+      const modalEl = document.getElementById("waitlistModal");
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
     });
   });
-
-  if (filtered.length === 0) {
-    eventsGrid.innerHTML = `
-      <div class="col-12">
-        <div class="alert alert-info">
-          No events found matching your search.
-        </div>
-      </div>
-    `;
-  }
 };
 
 const showEventsLoading = () => {
@@ -259,14 +237,8 @@ const showEventsLoading = () => {
   if (!eventsGrid) return;
 
   eventsGrid.innerHTML = `
-    <div class="col-12">
-      <div class="loading-card">
-        <div>
-          <h5>Loading events</h5>
-          <p>Fetching the latest listings from Delapre Abbey.</p>
-        </div>
-        <div class="spinner-border text-dark" role="status"></div>
-      </div>
+    <div class="col-12 text-center p-5">
+      <div class="spinner-border text-dark"></div>
     </div>
   `;
 };
@@ -277,11 +249,8 @@ const showEventsError = () => {
 
   eventsGrid.innerHTML = `
     <div class="col-12">
-      <div class="loading-card">
-        <div>
-          <h5>Events are offline</h5>
-          <p>We could not reach the API. Please try again in a moment.</p>
-        </div>
+      <div class="alert alert-danger">
+        Could not load events. Please try again.
       </div>
     </div>
   `;
@@ -291,12 +260,10 @@ export const loadEvents = async () => {
   showEventsLoading();
   try {
     const response = await fetch(`${apiBaseUrl}/api/events`);
-    if (!response.ok) {
-      throw new Error("Failed to fetch events");
-    }
+    if (!response.ok) throw new Error("Failed to fetch events");
     const data = await response.json();
     renderEvents(data);
-  } catch (error) {
+  } catch {
     showEventsError();
   }
 };

@@ -111,6 +111,12 @@ SELECT 'staff@example.com', 'pbkdf2:sha256:260000$g7kI2aI2$9d45862d53c3937397e5b
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'staff@example.com');
 
+-- Seed default user (password: 'password')
+INSERT INTO users (email, password_hash, first_name, last_name, is_staff)
+SELECT 'user@example.com', 'scrypt:32768:8:1$jgC3MRxi90dAzMdG$bbf979c0d01b7d3686d8128bf6565f3c3051cb7f3974c7c5fa7e8e97f12a9caa4c90bcf48db7b959cc22f5fa8018eb4ace564cdeb5048888844b9111edb95fe8', 'Gordon', 'Freeman', 0
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'user@example.com');
+
 CREATE TABLE IF NOT EXISTS event_waitlist (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   event_id BIGINT UNSIGNED NOT NULL,
