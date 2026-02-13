@@ -10,7 +10,7 @@ export const renderCartHTML = () => `
     <div class="container">
       <div class="section-header">
         <div>
-          <h2>Your cart</h2>
+          <h2>My Events</h2>
           <p>Confirm attendee details and checkout.</p>
         </div>
         <button class="btn btn-outline-dark btn-sm" id="clearCart">Clear cart</button>
