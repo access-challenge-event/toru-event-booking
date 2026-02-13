@@ -14,6 +14,7 @@ from sqlalchemy import func, text
 from werkzeug.security import check_password_hash, generate_password_hash
 import uuid
 import io
+import csv
 from fpdf import FPDF
 import qrcode
 
@@ -1137,6 +1138,114 @@ def list_all_bookings(current_user: User):
         .all()
     )
     return jsonify([booking_to_dict(booking) for booking in bookings])
+
+
+@app.get("/api/staff/events/upcoming")
+@require_staff
+def list_upcoming_events(current_user: User):
+    now = datetime.utcnow()
+    events = (
+        Event.query
+        .filter(Event.starts_at >= now)
+        .order_by(Event.starts_at.asc())
+        .all()
+    )
+
+    payload = []
+    for event in events:
+        confirmed = (
+            db.session.query(func.coalesce(func.sum(Booking.guest_count), 0))
+            .filter_by(event_id=event.id, status="confirmed")
+            .scalar()
+        )
+        checked_in = (
+            db.session.query(func.coalesce(func.sum(Booking.guest_count), 0))
+            .filter_by(event_id=event.id, status="confirmed", checked_in=True)
+            .scalar()
+        )
+        payload.append({
+            **event_to_dict(event),
+            "booked_count": int(confirmed or 0),
+            "checked_in_count": int(checked_in or 0),
+        })
+
+    return jsonify(payload)
+
+
+@app.get("/api/staff/events/<int:event_id>/attendance")
+@require_staff
+def download_attendance_report(current_user: User, event_id: int):
+    event = db.session.get(Event, event_id)
+    if not event:
+        return json_error("Event not found", 404)
+
+    bookings = (
+        Booking.query
+        .filter_by(event_id=event.id)
+        .order_by(Booking.booked_at.asc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "booking_id",
+        "confirmation_code",
+        "attendee",
+        "email",
+        "guest_count",
+        "guest_names",
+        "checked_in",
+        "checked_in_at",
+        "status",
+    ])
+
+    for booking in bookings:
+        attendee = ""
+        email = ""
+        if booking.user:
+            attendee = f"{booking.user.first_name} {booking.user.last_name}".strip()
+            email = booking.user.email or ""
+        else:
+            attendee = booking.guest_name or ""
+            email = booking.guest_email or ""
+
+        guest_names = []
+        if booking.guest_names:
+            try:
+                guest_names = json.loads(booking.guest_names)
+            except json.JSONDecodeError:
+                guest_names = []
+
+        guest_display = "; ".join(
+            [
+                f"{g.get('name', '')} ({g.get('type', '')})".strip()
+                if isinstance(g, dict)
+                else str(g)
+                for g in guest_names
+                if g
+            ]
+        )
+
+        writer.writerow([
+            booking.id,
+            booking.confirmation_code or "",
+            attendee,
+            email,
+            booking.guest_count,
+            guest_display,
+            "yes" if booking.checked_in else "no",
+            booking.checked_in_at.isoformat() if booking.checked_in_at else "",
+            booking.status,
+        ])
+
+    output.seek(0)
+    filename = f"attendance_event_{event.id}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={filename}"}
+    )
 
 
 @app.post("/api/staff/checkin")
