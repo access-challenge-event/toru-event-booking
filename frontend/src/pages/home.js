@@ -50,7 +50,7 @@ export const renderHomeHTML = () => `
         <div class="step-card">
           <p class="step-number">01</p>
           <h5>Browse events</h5>
-          <p>Filter by day, time, and venue. All events are free to attend.</p>
+          <p>Filter by day, time, and venue.</p>
         </div>
       </div>
       <div class="col-md-4">
@@ -64,7 +64,7 @@ export const renderHomeHTML = () => `
         <div class="step-card">
           <p class="step-number">03</p>
           <h5>Confirm your place</h5>
-          <p>Reserve in seconds, then reschedule or cancel whenever needed.</p>
+          <p>Reserve in seconds.</p>
         </div>
       </div>
     </div>
