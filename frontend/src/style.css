@@ -385,6 +385,27 @@ h1 {
   gap: 1rem;
 }
 
+.social-media {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.social-link {
+  color: #fff;
+  font-size: 1.5rem;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.social-link:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
 .built-by {
   display: flex;
   align-items: center;
