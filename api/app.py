@@ -871,11 +871,9 @@ def generate_confirmation(current_user: User, booking_id: int):
     pdf.set_font("Arial", "", 10)
     pdf.multi_cell(190, 10, "Please bring this confirmation with you (digital or printed) to the event. We look forward to seeing you there!")
 
-    buffer = io.BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
     return Response(
-        buffer,
+        pdf_bytes,
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment;filename=confirmation_{booking_id}.pdf"}
     )

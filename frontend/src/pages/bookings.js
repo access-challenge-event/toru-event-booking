@@ -118,7 +118,7 @@ const renderBookings = (bookings, isHistory = false) => {
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-outline-dark btn-sm receipt-btn" data-booking-id="${booking.id}">Receipt</button>
-              <button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>
+              ${booking.status !== 'cancelled' ? `<button class="btn btn-outline-dark btn-sm confirm-btn" data-booking-id="${booking.id}">Confirmation</button>` : ''}
             </div>
           </div>
         `;
