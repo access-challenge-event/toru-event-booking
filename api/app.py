@@ -44,6 +44,9 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(120), nullable=False)
     last_name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(50), nullable=True)
+    email_opt_in = db.Column(db.Boolean, nullable=False, default=True)
+    sms_opt_in = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -61,7 +64,8 @@ class Event(db.Model):
     description = db.Column(db.Text, nullable=False)
     starts_at = db.Column(db.DateTime, nullable=False)
     ends_at = db.Column(db.DateTime, nullable=False)
-    location = db.Column(db.String(255), nullable=False)
+    location_id = db.Column(db.BigInteger, db.ForeignKey("locations.id"), nullable=True)
+    location = db.relationship("Location", backref="events", lazy="joined")
     is_free = db.Column(db.Boolean, nullable=False, default=True)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0.00)
     capacity = db.Column(db.Integer, nullable=False, default=0)
@@ -102,6 +106,19 @@ class Category(db.Model):
 
     id = db.Column(db.BigInteger, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
+    updated_at = db.Column(
+        db.DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+
+class Location(db.Model):
+    __tablename__ = "locations"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    name = db.Column(db.String(255), nullable=False, unique=True)
     created_at = db.Column(db.DateTime, server_default=func.current_timestamp())
     updated_at = db.Column(
         db.DateTime,
@@ -184,6 +201,12 @@ def ensure_user_columns():
             conn.execute(
                 text("ALTER TABLE users ADD COLUMN is_staff TINYINT(1) NOT NULL DEFAULT 0")
             )
+        if "phone" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(50) NULL"))
+        if "email_opt_in" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN email_opt_in TINYINT(1) NOT NULL DEFAULT 1"))
+        if "sms_opt_in" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN sms_opt_in TINYINT(1) NOT NULL DEFAULT 0"))
 
 
 
@@ -204,6 +227,22 @@ def ensure_event_columns():
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
+        )
+
+        # ensure locations table exists
+        conn.execute(
+                text(
+                        """
+                        CREATE TABLE IF NOT EXISTS locations (
+                            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                            name VARCHAR(255) NOT NULL,
+                            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            PRIMARY KEY (id),
+                            UNIQUE KEY uk_locations_name (name)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                        """
+                )
         )
 
         result = conn.execute(
@@ -229,6 +268,30 @@ def ensure_event_columns():
             except Exception:
                 # ignore if constraint already exists or DB doesn't support it here
                 pass
+        if "location_id" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE events ADD COLUMN location_id BIGINT UNSIGNED NULL"
+                )
+            )
+            try:
+                conn.execute(text("ALTER TABLE events ADD CONSTRAINT fk_events_location FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL"))
+            except Exception:
+                pass
+
+        if "group_id" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
+            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
+
+        if "recurrence_type" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
+
+        if "group_id" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
+            conn.execute(text("CREATE INDEX idx_events_group_id ON events(group_id)"))
+
+        if "recurrence_type" not in columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN recurrence_type VARCHAR(20) NULL"))
 
         if "group_id" not in columns:
             conn.execute(text("ALTER TABLE events ADD COLUMN group_id VARCHAR(36) NULL"))
@@ -279,6 +342,9 @@ def token_for_user(user: User) -> str:
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "phone": user.phone,
+        "email_opt_in": bool(user.email_opt_in),
+        "sms_opt_in": bool(user.sms_opt_in),
         "exp": datetime.utcnow() + timedelta(hours=12),
     }
     return jwt.encode(payload, jwt_secret, algorithm="HS256")
@@ -320,7 +386,8 @@ def event_to_dict(event: Event, include_spots: bool = True):
         "description": event.description,
         "starts_at": event.starts_at.isoformat(),
         "ends_at": event.ends_at.isoformat(),
-        "location": event.location,
+        "location_id": int(event.location_id) if getattr(event, "location_id", None) is not None else None,
+        "location": event.location.name if getattr(event, "location", None) else None,
         "is_free": bool(event.is_free),
         "price": float(event.price) if event.price else 0.00,
         "capacity": event.capacity,
@@ -389,9 +456,8 @@ def list_categories():
 
 @app.get("/api/locations")
 def list_locations():
-    # Fetch distinct locations from existing events
-    locations = db.session.query(Event.location).distinct().order_by(Event.location.asc()).all()
-    return jsonify([loc[0] for loc in locations if loc[0]])
+    locations = Location.query.order_by(Location.name.asc()).all()
+    return jsonify([{"id": l.id, "name": l.name} for l in locations])
 
 
 @app.post("/api/events")
@@ -402,15 +468,37 @@ def create_event(current_user: User):
     
     title = (payload.get("title") or "").strip()
     description = (payload.get("description") or "").strip()
+    # location can be provided as a string (legacy) or a location_id (preferred)
     location = (payload.get("location") or "").strip()
+    location_id = payload.get("location_id")
     try:
         starts_at = datetime.fromisoformat(payload.get("starts_at", ""))
         ends_at = datetime.fromisoformat(payload.get("ends_at", ""))
     except ValueError:
         return json_error("Invalid date format")
 
-    if not title or not location or not starts_at or not ends_at:
-        return json_error("Title, location, start time, and end time are required")
+    if not title or not starts_at or not ends_at:
+        return json_error("Title, start time, and end time are required")
+
+    # Resolve location_id if not provided but location string is
+    if not location_id and location:
+        # find or create location by name
+        loc = Location.query.filter(func.lower(Location.name) == location.lower()).first()
+        if not loc:
+            loc = Location(name=location)
+            db.session.add(loc)
+            db.session.commit()
+        location_id = loc.id
+
+    if not location_id:
+        return json_error("Location is required")
+
+    try:
+        location_id = int(location_id)
+        if not db.session.get(Location, location_id):
+            return json_error("Invalid location id", 400)
+    except (ValueError, TypeError):
+        return json_error("Invalid location id", 400)
 
     capacity = payload.get("capacity", 0)
     try:
@@ -486,6 +574,7 @@ def create_event(current_user: User):
             description=description or "No description provided.",
             starts_at=starts_at,
             ends_at=ends_at,
+            location_id=location_id,
             location=location,
             is_free=bool(is_free),
             price=price,
@@ -548,6 +637,57 @@ def update_event(event_id):
             pass # Ignore invalid category id type if weird
 
     db.session.commit()
+    db.session.commit()
+    
+    # Return the first event created
+    return jsonify(event_to_dict(events_created[0])), 201
+
+
+@app.route("/api/events/<int:event_id>", methods=["PUT"])
+@require_staff
+def update_event(event_id):
+    event = Event.query.get(event_id)
+    if not event:
+        return json_error("Event not found", 404)
+
+    payload = request.get_json(silent=True) or {}
+    
+    # Update fields if provided
+    if "title" in payload:
+        event.title = payload["title"].strip()
+    if "description" in payload:
+        event.description = payload["description"].strip()
+    if "location" in payload:
+        event.location = payload["location"].strip()
+    if "starts_at" in payload:
+        try:
+            event.starts_at = datetime.fromisoformat(payload["starts_at"])
+        except ValueError:
+            return json_error("Invalid start date", 400)
+    if "ends_at" in payload:
+        try:
+            event.ends_at = datetime.fromisoformat(payload["ends_at"])
+        except ValueError:
+            return json_error("Invalid end date", 400)
+    if "price" in payload:
+        try:
+            event.price = float(payload["price"])
+        except ValueError:
+            return json_error("Invalid price", 400)
+    if "capacity" in payload:
+        try:
+            event.capacity = int(payload["capacity"])
+        except ValueError:
+            return json_error("Invalid capacity", 400)
+    if "is_free" in payload:
+        event.is_free = bool(payload["is_free"])
+    if "category_id" in payload:
+        try:
+            event.category_id = int(payload["category_id"])
+        except (ValueError, TypeError):
+            pass # Ignore invalid category id type if weird
+
+    db.session.commit()
     return jsonify(event_to_dict(event))
 
 
@@ -558,6 +698,9 @@ def register_user():
     password = payload.get("password") or ""
     first_name = (payload.get("first_name") or "").strip()
     last_name = (payload.get("last_name") or "").strip()
+    phone = (payload.get("phone") or "").strip() or None
+    email_opt_in = bool(payload.get("email_opt_in", True))
+    sms_opt_in = bool(payload.get("sms_opt_in", False))
 
     if not email or not password or not first_name or not last_name:
         return json_error("Email, password, first name, and last name are required")
@@ -570,6 +713,9 @@ def register_user():
         password_hash=generate_password_hash(password),
         first_name=first_name,
         last_name=last_name,
+        phone=phone,
+        email_opt_in=email_opt_in,
+        sms_opt_in=sms_opt_in,
     )
     db.session.add(user)
     db.session.commit()
@@ -584,6 +730,9 @@ def register_user():
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "is_staff": bool(user.is_staff),
+                "phone": user.phone,
+                "email_opt_in": bool(user.email_opt_in),
+                "sms_opt_in": bool(user.sms_opt_in),
             },
         }),
         201,
@@ -611,7 +760,47 @@ def login_user():
             "first_name": user.first_name,
             "last_name": user.last_name,
             "is_staff": bool(user.is_staff),
+            "phone": user.phone,
+            "email_opt_in": bool(user.email_opt_in),
+            "sms_opt_in": bool(user.sms_opt_in),
         },
+    })
+
+
+@app.get("/api/user/preferences")
+@require_auth
+def get_user_preferences(current_user: User):
+    return jsonify({
+        "phone": current_user.phone,
+        "email_opt_in": bool(current_user.email_opt_in),
+        "sms_opt_in": bool(current_user.sms_opt_in),
+    })
+
+
+@app.put("/api/user/preferences")
+@require_auth
+def update_user_preferences(current_user: User):
+    payload = request.get_json(silent=True) or {}
+    phone = (payload.get("phone") or "").strip() or None
+    email_opt_in = payload.get("email_opt_in")
+    sms_opt_in = payload.get("sms_opt_in")
+
+    # Basic phone validation
+    if phone and not re.match(r'^[\d\s\-\+\(\)]{7,20}$', phone):
+        return json_error("Please enter a valid phone number")
+
+    if email_opt_in is not None:
+        current_user.email_opt_in = bool(email_opt_in)
+    if sms_opt_in is not None:
+        current_user.sms_opt_in = bool(sms_opt_in)
+
+    current_user.phone = phone
+    db.session.commit()
+
+    return jsonify({
+        "phone": current_user.phone,
+        "email_opt_in": bool(current_user.email_opt_in),
+        "sms_opt_in": bool(current_user.sms_opt_in),
     })
 
 
