@@ -61,14 +61,23 @@ app.innerHTML = `
           <p class="mb-0">events@delapreabbey.org</p>
         </div>
         <div class="social-media">
-          <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" title="Facebook" class="social-link">
+          <a href="https://www.facebook.com/delapreabbey.org" target="_blank" rel="noopener noreferrer" title="Facebook" class="social-link">
             <i class="fa-brands fa-facebook"></i>
           </a>
-          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" title="Instagram" class="social-link">
+          <a href="https://www.instagram.com/delapreabbey/" target="_blank" rel="noopener noreferrer" title="Instagram" class="social-link">
             <i class="fa-brands fa-square-instagram"></i>
           </a>
-          <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" title="LinkedIn" class="social-link">
+          <a href="https://twitter.com/DelapreAbbey" target="_blank" rel="noopener noreferrer" title="Twitter" class="social-link">
+            <i class="fa-brands fa-twitter"></i>
+          </a>
+          <a href="https://www.tiktok.com/@delapreabbey" target="_blank" rel="noopener noreferrer" title="TikTok" class="social-link">
+            <i class="fa-brands fa-tiktok"></i>
+          </a>
+          <a href="https://www.linkedin.com/company/delapre-abbey" target="_blank" rel="noopener noreferrer" title="LinkedIn" class="social-link">
             <i class="fa-brands fa-linkedin-in"></i>
+          </a>
+          <a href="https://www.youtube.com/@delapreabbeypreservationtr1508" target="_blank" rel="noopener noreferrer" title="YouTube" class="social-link">
+            <i class="fa-brands fa-youtube"></i>
           </a>
         </div>
         <div class="built-by">
