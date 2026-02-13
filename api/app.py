@@ -489,13 +489,25 @@ def create_event(current_user: User):
 
     # Resolve location_id if not provided but location string is
     if not location_id and location:
-        # find or create location by name
-        loc = Location.query.filter(func.lower(Location.name) == location.lower()).first()
-        if not loc:
-            loc = Location(name=location)
-            db.session.add(loc)
-            db.session.commit()
-        location_id = loc.id
+        # If the client passed the numeric id in the `location` field (legacy), use it
+        try:
+            maybe_id = int(location)
+            if db.session.get(Location, maybe_id):
+                location_id = maybe_id
+            else:
+                # Fall back to treating it as a name below
+                pass
+        except (ValueError, TypeError):
+            pass
+
+        if not location_id:
+            # find or create location by name
+            loc = Location.query.filter(func.lower(Location.name) == location.lower()).first()
+            if not loc:
+                loc = Location(name=location)
+                db.session.add(loc)
+                db.session.commit()
+            location_id = loc.id
 
     if not location_id:
         return json_error("Location is required")
@@ -539,6 +551,18 @@ def create_event(current_user: User):
     events_created = []
     group_id = None
 
+    # Helper: check for overlapping events at the same location
+    def has_conflict(loc_id, start_dt, end_dt):
+        # overlap if existing.starts_at < new.ends_at and existing.ends_at > new.starts_at
+        conflict = (
+            Event.query
+            .filter(Event.location_id == loc_id)
+            .filter(Event.starts_at < end_dt)
+            .filter(Event.ends_at > start_dt)
+            .first()
+        )
+        return conflict is not None
+
     if recurrence_type == "weekly" and recurrence_end_date:
         try:
             end_date_obj = datetime.fromisoformat(recurrence_end_date)
@@ -554,18 +578,25 @@ def create_event(current_user: User):
         current_end = ends_at
         
         while current_start <= end_date_obj:
+            # Check for time/location conflicts before adding
+            if has_conflict(location_id, current_start, current_end):
+                return json_error(
+                    f"Location is already booked for {current_start.date()} {current_start.time()} - {current_end.time()}",
+                    409,
+                )
+
             event = Event(
                 title=title,
                 description=description or "No description provided.",
                 starts_at=current_start,
                 ends_at=current_end,
-                location=location,
+                location_id=location_id,
                 is_free=bool(is_free),
                 price=price,
                 capacity=capacity,
                 category_id=category_id,
                 group_id=group_id,
-                recurrence_type=recurrence_type
+                recurrence_type=recurrence_type,
             )
             db.session.add(event)
             events_created.append(event)
@@ -576,19 +607,22 @@ def create_event(current_user: User):
             
     else:
         # Single event
+        # Check for conflict at this location/time
+        if has_conflict(location_id, starts_at, ends_at):
+            return json_error("Location is already booked at that time", 409)
+
         event = Event(
             title=title,
             description=description or "No description provided.",
             starts_at=starts_at,
             ends_at=ends_at,
             location_id=location_id,
-            location=location,
             is_free=bool(is_free),
             price=price,
             capacity=capacity,
             category_id=category_id,
             group_id=None,
-            recurrence_type=None
+            recurrence_type=None,
         )
         db.session.add(event)
         events_created.append(event)
