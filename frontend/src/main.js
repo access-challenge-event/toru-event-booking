@@ -60,6 +60,17 @@ app.innerHTML = `
           <p class="mb-1">Contact</p>
           <p class="mb-0">events@delapreabbey.org</p>
         </div>
+        <div class="social-media">
+          <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" title="Facebook" class="social-link">
+            <i class="fa-brands fa-facebook"></i>
+          </a>
+          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" title="Instagram" class="social-link">
+            <i class="fa-brands fa-square-instagram"></i>
+          </a>
+          <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" title="LinkedIn" class="social-link">
+            <i class="fa-brands fa-linkedin-in"></i>
+          </a>
+        </div>
         <div class="built-by">
           <span>Built by</span>
           <img src="/groupLogo.svg" alt="Group logo" />
