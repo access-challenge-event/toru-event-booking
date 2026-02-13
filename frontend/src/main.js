@@ -15,11 +15,10 @@ import { renderPreferencesHTML, initPreferencesPage, showPreferencesPage, hidePr
 const app = document.querySelector("#app");
 
 app.innerHTML = `
-  <nav class="navbar navbar-expand-lg navbar-light py-3">
+  <nav class="navbar navbar-expand-lg navbar-light">
     <div class="container">
-      <a class="navbar-brand" href="${router.href('')}">
-        <span class="brand-mark">DA</span>
-        <span class="brand-text">Delapre Abbey Events</span>
+      <a class="" href="${router.href('')}">
+        <img class="brand-logo" src="/logo-1.webp" alt="Delapre Abbey Events" />
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
         <span class="navbar-toggler-icon"></span>

@@ -62,9 +62,15 @@ h5 {
   font-weight: 700;
 }
 
+.brand-logo {
+  width: 14vw;
+  display: block;
+}
+
 /* Brand / navbar colour to match Delapré Abbey */
 .navbar {
   background: var(--brand-dark) !important;
+  padding-top: 0;
 }
 
 .navbar .navbar-brand,
